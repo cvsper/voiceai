@@ -201,7 +201,7 @@ class DeepgramService:
             options = SpeakOptions(
                 model="aura-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="linear16",  # Use WAV format that's supported
-                sample_rate=22050,    # Standard sample rate for voice
+                sample_rate=24000,    # Supported sample rate for high quality voice
                 container="wav"       # WAV container format
             )
             
