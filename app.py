@@ -115,8 +115,17 @@ def create_app():
             
             # Generate TwiML response
             if call_status == 'ringing':
-                twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
-                logger.info(f"Generated TwiML: {twiml_response}")
+                try:
+                    twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
+                    logger.info(f"Generated TwiML: {twiml_response}")
+                except Exception as twiml_error:
+                    logger.error(f"Error generating TwiML: {twiml_error}")
+                    # Fallback TwiML
+                    twiml_response = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="alice" language="en-US">Hello! Thank you for calling. I'm your AI assistant. How can I help you today?</Say>
+    <Record action="''' + current_app.config['BASE_URL'] + '''/webhooks/recording" method="POST" maxLength="300" transcribe="true" transcribeCallback="''' + current_app.config['BASE_URL'] + '''/webhooks/transcribe" playBeep="false" />
+</Response>'''
             else:
                 twiml_response = '<Response></Response>'
             
@@ -124,7 +133,11 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error in voice webhook: {e}")
-            return '<Response><Say>Sorry, there was an error.</Say></Response>', 500, {'Content-Type': 'text/xml'}
+            # Simple, guaranteed-to-work TwiML
+            return '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="alice" language="en-US">Hello! Thank you for calling.</Say>
+</Response>''', 200, {'Content-Type': 'text/xml'}
     
     @app.route('/webhooks/transcribe', methods=['POST'])
     def handle_transcription_webhook():

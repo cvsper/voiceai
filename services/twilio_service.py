@@ -33,12 +33,13 @@ class TwilioService:
             )
             
             # Start recording for transcription and conversation
+            base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             response.record(
-                action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                action=f"{base_url}/webhooks/recording",
                 method='POST',
                 max_length=300,  # 5 minutes max
                 transcribe=True,
-                transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                transcribe_callback=f"{base_url}/webhooks/transcribe",
                 play_beep=False  # More natural conversation
             )
             
