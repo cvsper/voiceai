@@ -23,39 +23,14 @@ class TwilioService:
     def handle_incoming_call(self, call_sid, from_number, to_number):
         """Handle incoming call and return TwiML response with AI-generated greeting"""
         try:
-            from services.openai_service import OpenAIService
-            from services.elevenlabs_service import ElevenLabsService
-            
             response = VoiceResponse()
             
-            # Generate dynamic AI greeting
-            try:
-                openai_service = OpenAIService()
-                elevenlabs_service = ElevenLabsService()
-                
-                # Generate personalized greeting based on caller info
-                greeting_prompt = f"Generate a warm, professional greeting for an incoming call from {from_number}. Keep it under 30 words and ask how you can help them today."
-                
-                ai_greeting = openai_service.generate_text(greeting_prompt)
-                
-                # Convert to speech using ElevenLabs
-                audio_url = elevenlabs_service.text_to_speech_url(ai_greeting)
-                
-                if audio_url:
-                    # Play the AI-generated audio
-                    response.play(audio_url)
-                else:
-                    # Fallback to text-to-speech
-                    response.say(ai_greeting, voice='alice', language='en-US')
-                    
-            except Exception as ai_error:
-                logger.warning(f"AI greeting failed, using default: {ai_error}")
-                # Fallback greeting
-                response.say(
-                    "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
-                    voice='alice',
-                    language='en-US'
-                )
+            # Simple, reliable greeting first
+            response.say(
+                "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
+                voice='alice',
+                language='en-US'
+            )
             
             # Start recording for transcription and conversation
             response.record(
@@ -72,7 +47,7 @@ class TwilioService:
         except Exception as e:
             logger.error(f"Error handling incoming call {call_sid}: {e}")
             response = VoiceResponse()
-            response.say("I'm sorry, there was an error. Please try calling again later.")
+            response.say("Hello! Thank you for calling.")
             return str(response)
     
     def handle_conference_call(self, call_sid, participants):
