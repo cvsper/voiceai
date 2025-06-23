@@ -184,7 +184,7 @@ def create_app():
                     from twilio.twiml.voice_response import VoiceResponse
                     response = VoiceResponse()
                     
-                    # Try to use Deepgram voice for AI response
+                    # Try to use Deepgram voice for AI response, with ElevenLabs fallback
                     try:
                         if current_app.config.get('DEEPGRAM_API_KEY'):
                             deepgram_service = get_deepgram_service()
@@ -192,18 +192,31 @@ def create_app():
                             
                             if ai_audio_url:
                                 response.play(ai_audio_url)
-                                logger.info(f"Playing Deepgram AI response for call {call_sid}")
+                                logger.info(f"Playing Deepgram AI response for call {call_sid}: {ai_audio_url}")
                             else:
-                                # Fallback to Twilio voice
-                                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                                logger.info(f"Playing Twilio AI response for call {call_sid}")
+                                raise Exception("Deepgram TTS failed, trying ElevenLabs")
                         else:
-                            # Fallback to Twilio voice
+                            raise Exception("Deepgram not configured, trying ElevenLabs")
+                    except Exception as deepgram_error:
+                        logger.warning(f"Deepgram failed, trying ElevenLabs: {deepgram_error}")
+                        # Try ElevenLabs as fallback
+                        try:
+                            if current_app.config.get('ELEVENLABS_API_KEY'):
+                                elevenlabs_service = get_elevenlabs_service()
+                                el_audio_url = elevenlabs_service.text_to_speech_url(ai_response_text)
+                                
+                                if el_audio_url:
+                                    response.play(el_audio_url)
+                                    logger.info(f"Playing ElevenLabs AI response for call {call_sid}: {el_audio_url}")
+                                else:
+                                    raise Exception("ElevenLabs also failed")
+                            else:
+                                raise Exception("ElevenLabs not configured")
+                        except Exception as elevenlabs_error:
+                            logger.error(f"Both Deepgram and ElevenLabs failed: {elevenlabs_error}")
+                            # Final fallback to Twilio voice
                             response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                            logger.info(f"Playing Twilio AI response for call {call_sid}")
-                    except Exception as voice_error:
-                        logger.error(f"Error generating AI voice response: {voice_error}")
-                        response.say(ai_response_text, voice='alice', language='en-US')
+                            logger.info(f"Using Twilio voice AI response for call {call_sid}")
                     
                     # Continue recording for more conversation
                     response.record(
@@ -712,6 +725,15 @@ def create_app():
         try:
             import os
             static_dir = os.path.join(os.path.dirname(__file__), 'static', 'audio')
+            file_path = os.path.join(static_dir, filename)
+            
+            # Log file info for debugging
+            if os.path.exists(file_path):
+                file_size = os.path.getsize(file_path)
+                logger.info(f"Serving audio file {filename}: {file_size} bytes")
+            else:
+                logger.error(f"Audio file not found: {file_path}")
+                return jsonify({'error': 'Audio file not found'}), 404
             
             # Determine mimetype based on file extension
             if filename.endswith('.wav'):
@@ -725,6 +747,7 @@ def create_app():
             # Add headers for better Twilio compatibility
             response.headers['Accept-Ranges'] = 'bytes'
             response.headers['Content-Transfer-Encoding'] = 'binary'
+            response.headers['Cache-Control'] = 'no-cache'
             return response
         except Exception as e:
             logger.error(f"Error serving audio file {filename}: {e}")
