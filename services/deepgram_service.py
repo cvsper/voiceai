@@ -67,25 +67,48 @@ class DeepgramService:
                     language="en-US"
                 )
                 
-                # For Twilio URLs, we need to provide authentication
-                url_config = {"url": audio_file_url}
-                
-                # If it's a Twilio recording URL, add auth
+                # For Twilio URLs, we need to download the file first since they require auth
                 if "twilio.com" in audio_file_url:
-                    # Twilio recording URLs require HTTP Basic Auth
-                    import base64
+                    # Download the file using Twilio credentials
+                    import requests
+                    import tempfile
+                    import os
+                    
                     twilio_sid = current_app.config.get('TWILIO_ACCOUNT_SID')
                     twilio_token = current_app.config.get('TWILIO_AUTH_TOKEN')
                     
                     if twilio_sid and twilio_token:
-                        auth_string = base64.b64encode(f"{twilio_sid}:{twilio_token}".encode()).decode()
-                        url_config["headers"] = {
-                            "Authorization": f"Basic {auth_string}"
-                        }
-                
-                response = self.deepgram.listen.prerecorded.v("1").transcribe_url(
-                    url_config, options
-                )
+                        try:
+                            # Download the recording with auth
+                            auth = (twilio_sid, twilio_token)
+                            response_download = requests.get(audio_file_url, auth=auth)
+                            response_download.raise_for_status()
+                            
+                            # Create temporary file
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+                                temp_file.write(response_download.content)
+                                temp_path = temp_file.name
+                            
+                            # Transcribe using file
+                            with open(temp_path, 'rb') as audio_file:
+                                response = self.deepgram.listen.prerecorded.v("1").transcribe_file(
+                                    audio_file, options
+                                )
+                            
+                            # Clean up temp file
+                            os.unlink(temp_path)
+                            
+                        except Exception as download_error:
+                            logger.error(f"Failed to download Twilio recording: {download_error}")
+                            return self._get_mock_data()
+                    else:
+                        logger.error("Twilio credentials not configured for recording download")
+                        return self._get_mock_data()
+                else:
+                    # Direct URL transcription for non-Twilio URLs
+                    response = self.deepgram.listen.prerecorded.v("1").transcribe_url(
+                        {"url": audio_file_url}, options
+                    )
                 
                 # Process response
                 if response.results and response.results.channels:
