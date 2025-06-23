@@ -199,7 +199,7 @@ class DeepgramService:
             from deepgram import SpeakOptions
             
             options = SpeakOptions(
-                model="aura-2-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
+                model="aura-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="mp3",       # MP3 encoding for better Twilio compatibility
                 sample_rate=24000,    # High quality sample rate
                 container="mp3"       # MP3 container format
