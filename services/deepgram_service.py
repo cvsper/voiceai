@@ -201,7 +201,7 @@ class DeepgramService:
             options = SpeakOptions(
                 model="aura-2-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="linear16",  # PCM encoding for WAV
-                sample_rate=24000,    # High quality sample rate
+                sample_rate=8000,     # 8kHz telephony sample rate for better Twilio compatibility
                 container="wav"       # WAV container format
             )
             

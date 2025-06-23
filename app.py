@@ -721,7 +721,11 @@ def create_app():
             else:
                 mimetype = 'audio/wav'  # Default
                 
-            return send_from_directory(static_dir, filename, mimetype=mimetype)
+            response = send_from_directory(static_dir, filename, mimetype=mimetype)
+            # Add headers for better Twilio compatibility
+            response.headers['Accept-Ranges'] = 'bytes'
+            response.headers['Content-Transfer-Encoding'] = 'binary'
+            return response
         except Exception as e:
             logger.error(f"Error serving audio file {filename}: {e}")
             return jsonify({'error': 'Audio file not found'}), 404
