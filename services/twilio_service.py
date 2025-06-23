@@ -21,61 +21,58 @@ class TwilioService:
             raise
     
     def handle_incoming_call(self, call_sid, from_number, to_number):
-        """Handle incoming call and return TwiML response with ElevenLabs voice"""
+        """Handle incoming call with full Deepgram voice using improved approach"""
         try:
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
-            # Use Deepgram voice for the most natural AI sound
+            # Generate initial Deepgram greeting
+            logger.info(f"Generating Deepgram greeting for call {call_sid}")
+            
             try:
                 if current_app.config.get('DEEPGRAM_API_KEY'):
-                    logger.info(f"Attempting Deepgram TTS for call {call_sid}")
-                    # Generate greeting with Deepgram TTS
                     from services.deepgram_service import DeepgramService
                     deepgram_service = DeepgramService()
                     
                     greeting_text = "Hello! Thank you for calling. I'm your AI assistant with Aura Amalthea voice technology. How can I help you today?"
                     
-                    # Try to generate Deepgram voice with timeout protection
-                    try:
-                        audio_url = deepgram_service.text_to_speech_url(greeting_text)
-                        
-                        if audio_url:
-                            response.play(audio_url)
-                            logger.info(f"Using Deepgram voice greeting for call {call_sid}: {audio_url}")
-                        else:
-                            logger.warning(f"Deepgram TTS returned None for call {call_sid}")
-                            raise Exception("Deepgram TTS returned None")
-                    except Exception as tts_error:
-                        logger.error(f"Deepgram TTS generation failed for call {call_sid}: {tts_error}")
-                        raise Exception(f"Deepgram TTS failed: {tts_error}")
-                else:
-                    raise Exception("Deepgram API key not configured")
+                    # Generate Deepgram audio
+                    audio_data = deepgram_service.text_to_speech(greeting_text)
                     
-            except Exception as deepgram_error:
-                logger.info(f"Deepgram voice not available, using premium Twilio voice: {deepgram_error}")
-                # Fallback to premium Twilio neural voice
+                    if audio_data:
+                        # Store in app context
+                        if not hasattr(current_app, '_deepgram_audio_cache'):
+                            current_app._deepgram_audio_cache = {}
+                        
+                        import uuid
+                        audio_id = str(uuid.uuid4())
+                        current_app._deepgram_audio_cache[audio_id] = audio_data
+                        
+                        audio_url = f"{base_url}/api/audio/{audio_id}"
+                        response.play(audio_url)
+                        logger.info(f"Playing Deepgram greeting: {audio_url}")
+                    else:
+                        raise Exception("Deepgram TTS failed")
+                else:
+                    raise Exception("Deepgram not configured")
+                    
+            except Exception as e:
+                logger.warning(f"Deepgram greeting failed, using Twilio: {e}")
                 response.say(
-                    "Hello! Thank you for calling. I'm your AI assistant powered by advanced voice technology. How can I help you today?",
-                    voice='Polly.Joanna-Neural',  # Neural voice for more natural sound
+                    "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
+                    voice='Polly.Joanna-Neural',
                     language='en-US'
                 )
             
-            # Add a quick AI response after greeting
-            response.say(
-                "I'm ready to help you. Please tell me what you need assistance with.",
-                voice='Polly.Joanna-Neural',
-                language='en-US'
-            )
-            
-            # Start recording for transcription and conversation
+            # Set up continuous conversation with enhanced webhooks
             response.record(
                 action=f"{base_url}/webhooks/recording",
                 method='POST',
-                max_length=300,  # 5 minutes max
+                max_length=30,  # Shorter recordings for more responsive conversation
                 transcribe=True,
                 transcribe_callback=f"{base_url}/webhooks/transcribe",
-                play_beep=False  # More natural conversation
+                play_beep=False,
+                timeout=10  # Wait 10 seconds for speech
             )
             
             return str(response)
