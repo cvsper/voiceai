@@ -209,6 +209,21 @@ def create_app():
                                 appointment.to_dict(),
                                 {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
                             )
+            elif transcription_status == 'failed':
+                logger.warning(f"Twilio transcription failed for call {call_sid}")
+                # Still process the call for basic logging
+                call = Call.query.filter_by(call_sid=call_sid).first()
+                if call:
+                    # Create a basic transcript indicating transcription failed
+                    transcript = Transcript(
+                        call_id=call.id,
+                        speaker='system',
+                        text='[Transcription unavailable - call was recorded but transcription failed]',
+                        confidence=0.0,
+                        is_final=True
+                    )
+                    db.session.add(transcript)
+                    db.session.commit()
             
             return '', 200
             

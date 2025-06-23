@@ -98,7 +98,7 @@ class DeepgramService:
                             # Transcribe using file
                             with open(temp_path, 'rb') as audio_file:
                                 response = self.deepgram.listen.prerecorded.v("1").transcribe_file(
-                                    audio_file, options
+                                    {"buffer": audio_file}, options
                                 )
                             
                             # Clean up temp file
