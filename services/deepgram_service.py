@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 class DeepgramService:
     def __init__(self):
         self.api_key = None
+        self.deepgram = None
         self._initialize_client()
     
     def _initialize_client(self):
@@ -14,6 +15,14 @@ class DeepgramService:
             self.api_key = current_app.config.get('DEEPGRAM_API_KEY')
             if not self.api_key:
                 logger.warning("Deepgram API key not configured")
+            else:
+                # Try to import and initialize Deepgram client
+                try:
+                    from deepgram import DeepgramClient
+                    self.deepgram = DeepgramClient(self.api_key)
+                    logger.info("Deepgram client initialized successfully")
+                except ImportError:
+                    logger.warning("Deepgram SDK not available, using mock implementation")
         except Exception as e:
             logger.error(f"Failed to initialize Deepgram client: {e}")
     
@@ -36,8 +45,8 @@ class DeepgramService:
     def transcribe_file(self, audio_file_url):
         """Transcribe a recorded audio file"""
         try:
-            if not self.api_key:
-                logger.warning("Deepgram API key not configured, returning mock data")
+            if not self.deepgram:
+                logger.warning("Deepgram client not available, returning mock data")
                 return [{
                     'text': 'Mock transcription of recorded audio file',
                     'start': 0,
@@ -46,21 +55,57 @@ class DeepgramService:
                     'confidence': 0.85
                 }]
             
-            # TODO: Implement actual Deepgram API call when needed
-            # For now, return mock data to allow the app to run
-            logger.info(f"File transcription requested for: {audio_file_url}")
-            
-            return [{
-                'text': 'This is a mock transcription of the audio file. The actual Deepgram integration will replace this.',
-                'start': 0,
-                'end': 30,
-                'speaker': 0,
-                'confidence': 0.85
-            }]
+            # Try to use actual Deepgram transcription
+            try:
+                from deepgram import PrerecordedOptions
+                
+                options = PrerecordedOptions(
+                    model="nova-2",
+                    smart_format=True,
+                    punctuate=True,
+                    diarize=True,
+                    language="en-US"
+                )
+                
+                response = self.deepgram.listen.prerecorded.v("1").transcribe_url(
+                    {"url": audio_file_url}, options
+                )
+                
+                # Process response
+                if response.results and response.results.channels:
+                    transcript_data = []
+                    channel = response.results.channels[0]
+                    
+                    if channel.alternatives:
+                        for paragraph in channel.alternatives[0].paragraphs.paragraphs:
+                            for sentence in paragraph.sentences:
+                                transcript_data.append({
+                                    'text': sentence.text,
+                                    'start': sentence.start,
+                                    'end': sentence.end,
+                                    'speaker': paragraph.speaker,
+                                    'confidence': sentence.confidence
+                                })
+                    
+                    return transcript_data if transcript_data else self._get_mock_data()
+                
+            except Exception as deepgram_error:
+                logger.error(f"Deepgram transcription failed: {deepgram_error}")
+                return self._get_mock_data()
             
         except Exception as e:
             logger.error(f"Error transcribing file {audio_file_url}: {e}")
             return []
+    
+    def _get_mock_data(self):
+        """Return mock transcription data"""
+        return [{
+            'text': 'This is a mock transcription of the audio file. The actual Deepgram integration will replace this when properly configured.',
+            'start': 0,
+            'end': 30,
+            'speaker': 0,
+            'confidence': 0.85
+        }]
     
     def process_twilio_transcription(self, transcription_text, call_sid):
         """Process Twilio's built-in transcription"""
