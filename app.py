@@ -675,6 +675,18 @@ def create_app():
             logger.error(f"Error serving audio file {filename}: {e}")
             return jsonify({'error': 'Audio file not found'}), 404
     
+    # Serve static greeting file
+    @app.route('/static/greeting.mp3')
+    def serve_greeting():
+        """Serve the ElevenLabs greeting file"""
+        try:
+            import os
+            static_dir = os.path.join(os.path.dirname(__file__), 'static')
+            return send_from_directory(static_dir, 'greeting.mp3', mimetype='audio/mpeg')
+        except Exception as e:
+            logger.error(f"Error serving greeting file: {e}")
+            return jsonify({'error': 'Greeting file not found'}), 404
+    
     return app
 
 # Create app instance for WSGI
