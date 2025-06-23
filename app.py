@@ -116,6 +116,7 @@ def create_app():
             # Generate TwiML response
             if call_status == 'ringing':
                 twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
+                logger.info(f"Generated TwiML: {twiml_response}")
             else:
                 twiml_response = '<Response></Response>'
             
