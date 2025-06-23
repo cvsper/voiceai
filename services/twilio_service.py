@@ -61,6 +61,13 @@ class TwilioService:
                     language='en-US'
                 )
             
+            # Add a quick AI response after greeting
+            response.say(
+                "I'm ready to help you. Please tell me what you need assistance with.",
+                voice='Polly.Joanna-Neural',
+                language='en-US'
+            )
+            
             # Start recording for transcription and conversation
             response.record(
                 action=f"{base_url}/webhooks/recording",
