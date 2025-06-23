@@ -2,7 +2,7 @@ services:
   - type: web
     name: voiceai
     env: python
-    buildCommand: "pip install -r requirements.txt && cd demo && npm ci --production=false && npm run build"
+    buildCommand: "./build.sh"
     startCommand: "gunicorn app:app"
     envVars:
       - key: PYTHON_VERSION
