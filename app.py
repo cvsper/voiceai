@@ -100,7 +100,7 @@ def create_app():
                 db.session.commit()
                 
                 # Trigger CRM webhook for call started
-                crm_service.trigger_call_started({
+                get_crm_service().trigger_call_started({
                     'call_id': call.id,
                     'call_sid': call_sid,
                     'from_number': from_number,
@@ -170,7 +170,7 @@ def create_app():
                     
                     # Handle appointment booking
                     if intent_result['intent'] == 'booking_appointment' and intent_result['confidence'] > 0.8:
-                        appointment_details = openai_service.extract_appointment_details(transcription_text)
+                        appointment_details = get_openai_service().extract_appointment_details(transcription_text)
                         if appointment_details and appointment_details.get('date') and appointment_details.get('time'):
                             # Create appointment
                             start_time = datetime.fromisoformat(f"{appointment_details['date']}T{appointment_details['time']}")
@@ -187,7 +187,7 @@ def create_app():
                             )
                             
                             # Try to create in Google Calendar
-                            calendar_result = calendar_service.create_appointment({
+                            calendar_result = get_calendar_service().create_appointment({
                                 'title': appointment.title,
                                 'description': appointment.description,
                                 'start_time': start_time.isoformat(),
@@ -202,7 +202,7 @@ def create_app():
                             db.session.commit()
                             
                             # Trigger CRM webhook
-                            crm_service.trigger_appointment_booked(
+                            get_crm_service().trigger_appointment_booked(
                                 appointment.to_dict(),
                                 {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
                             )
@@ -230,7 +230,7 @@ def create_app():
                 
                 # Process recording with Deepgram for better transcription
                 if recording_url:
-                    transcript_data = deepgram_service.transcribe_file(recording_url)
+                    transcript_data = get_deepgram_service().transcribe_file(recording_url)
                     for transcript_item in transcript_data:
                         transcript = Transcript(
                             call_id=call.id,
@@ -292,7 +292,7 @@ def create_app():
             
             # Generate call summary
             if call.transcripts:
-                summary = openai_service.summarize_call(
+                summary = get_openai_service().summarize_call(
                     [{'speaker': t.speaker, 'text': t.text} for t in call.transcripts]
                 )
                 result['summary'] = summary
@@ -327,7 +327,7 @@ def create_app():
             )
             
             # Try to create in Google Calendar
-            calendar_result = calendar_service.create_appointment(data)
+            calendar_result = get_calendar_service().create_appointment(data)
             if calendar_result:
                 appointment.google_event_id = calendar_result['event_id']
             
@@ -335,7 +335,7 @@ def create_app():
             db.session.commit()
             
             # Trigger CRM webhook
-            crm_service.trigger_appointment_booked(appointment.to_dict())
+            get_crm_service().trigger_appointment_booked(appointment.to_dict())
             
             return jsonify(appointment.to_dict()), 201
             
@@ -380,7 +380,7 @@ def create_app():
             if not webhook_url:
                 return jsonify({'error': 'webhook_url is required'}), 400
             
-            result = crm_service.trigger_webhook(webhook_url, payload, call_id)
+            result = get_crm_service().trigger_webhook(webhook_url, payload, call_id)
             
             return jsonify(result)
             
@@ -400,7 +400,7 @@ def create_app():
                 return jsonify({'error': 'date parameter is required'}), 400
             
             date = datetime.fromisoformat(date_str).date()
-            slots = calendar_service.get_available_slots(date, duration)
+            slots = get_calendar_service().get_available_slots(date, duration)
             
             return jsonify({'available_slots': slots})
             
