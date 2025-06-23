@@ -79,9 +79,15 @@ class DeepgramService:
                     
                     if twilio_sid and twilio_token:
                         try:
+                            # Twilio recording URLs need .mp3 appended to get the actual media
+                            media_url = audio_file_url
+                            if not media_url.endswith(('.mp3', '.wav')):
+                                media_url = f"{audio_file_url}.mp3"
+                            
                             # Download the recording with auth
                             auth = (twilio_sid, twilio_token)
-                            response_download = requests.get(audio_file_url, auth=auth)
+                            logger.info(f"Downloading recording from: {media_url}")
+                            response_download = requests.get(media_url, auth=auth)
                             response_download.raise_for_status()
                             
                             # Create temporary file
