@@ -253,28 +253,34 @@ def create_app():
                         import threading
                         import time
                         
+                        # Capture the current app context for the background thread
+                        current_app_instance = current_app._get_current_object()
+                        call_id_for_thread = call.id
+                        
                         def process_deepgram_delayed():
                             time.sleep(5)  # Wait 5 seconds before trying Deepgram
-                            try:
-                                logger.info(f"Starting delayed Deepgram processing for {recording_url}")
-                                transcript_data = get_deepgram_service().transcribe_file(recording_url)
-                                if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
-                                    # Only save if we got real transcription data (not mock)
-                                    for transcript_item in transcript_data:
-                                        transcript = Transcript(
-                                            call_id=call.id,
-                                            speaker=f"speaker_{transcript_item['speaker']}",
-                                            text=transcript_item['text'],
-                                            confidence=transcript_item['confidence'],
-                                            is_final=True
-                                        )
-                                        db.session.add(transcript)
-                                    db.session.commit()
-                                    logger.info(f"Deepgram transcription completed for recording {recording_url}")
-                                else:
-                                    logger.info("Deepgram returned mock data, skipping database save")
-                            except Exception as e:
-                                logger.warning(f"Delayed Deepgram transcription failed for {recording_url}: {e}")
+                            # Create Flask application context for the background thread
+                            with current_app_instance.app_context():
+                                try:
+                                    logger.info(f"Starting delayed Deepgram processing for {recording_url}")
+                                    transcript_data = get_deepgram_service().transcribe_file(recording_url)
+                                    if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
+                                        # Only save if we got real transcription data (not mock)
+                                        for transcript_item in transcript_data:
+                                            transcript = Transcript(
+                                                call_id=call_id_for_thread,
+                                                speaker=f"speaker_{transcript_item['speaker']}",
+                                                text=transcript_item['text'],
+                                                confidence=transcript_item['confidence'],
+                                                is_final=True
+                                            )
+                                            db.session.add(transcript)
+                                        db.session.commit()
+                                        logger.info(f"Deepgram transcription completed for recording {recording_url}")
+                                    else:
+                                        logger.info("Deepgram returned mock data, skipping database save")
+                                except Exception as e:
+                                    logger.warning(f"Delayed Deepgram transcription failed for {recording_url}: {e}")
                         
                         # Start background thread for Deepgram processing
                         thread = threading.Thread(target=process_deepgram_delayed)
