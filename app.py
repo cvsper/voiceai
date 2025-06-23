@@ -249,21 +249,40 @@ def create_app():
                 # Process recording with Deepgram for better transcription (optional)
                 if recording_url:
                     try:
-                        transcript_data = get_deepgram_service().transcribe_file(recording_url)
-                        if transcript_data:
-                            for transcript_item in transcript_data:
-                                transcript = Transcript(
-                                    call_id=call.id,
-                                    speaker=f"speaker_{transcript_item['speaker']}",
-                                    text=transcript_item['text'],
-                                    confidence=transcript_item['confidence'],
-                                    is_final=True
-                                )
-                                db.session.add(transcript)
-                            db.session.commit()
-                            logger.info(f"Deepgram transcription completed for recording {recording_url}")
+                        # Add a small delay before processing to ensure recording is ready
+                        import threading
+                        import time
+                        
+                        def process_deepgram_delayed():
+                            time.sleep(5)  # Wait 5 seconds before trying Deepgram
+                            try:
+                                logger.info(f"Starting delayed Deepgram processing for {recording_url}")
+                                transcript_data = get_deepgram_service().transcribe_file(recording_url)
+                                if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
+                                    # Only save if we got real transcription data (not mock)
+                                    for transcript_item in transcript_data:
+                                        transcript = Transcript(
+                                            call_id=call.id,
+                                            speaker=f"speaker_{transcript_item['speaker']}",
+                                            text=transcript_item['text'],
+                                            confidence=transcript_item['confidence'],
+                                            is_final=True
+                                        )
+                                        db.session.add(transcript)
+                                    db.session.commit()
+                                    logger.info(f"Deepgram transcription completed for recording {recording_url}")
+                                else:
+                                    logger.info("Deepgram returned mock data, skipping database save")
+                            except Exception as e:
+                                logger.warning(f"Delayed Deepgram transcription failed for {recording_url}: {e}")
+                        
+                        # Start background thread for Deepgram processing
+                        thread = threading.Thread(target=process_deepgram_delayed)
+                        thread.daemon = True
+                        thread.start()
+                        
                     except Exception as e:
-                        logger.warning(f"Deepgram transcription failed for {recording_url}, will rely on Twilio transcription: {e}")
+                        logger.warning(f"Failed to start Deepgram processing thread: {e}")
             
             return '', 200
             

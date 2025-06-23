@@ -84,11 +84,31 @@ class DeepgramService:
                             if not media_url.endswith(('.mp3', '.wav')):
                                 media_url = f"{audio_file_url}.mp3"
                             
-                            # Download the recording with auth
                             auth = (twilio_sid, twilio_token)
                             logger.info(f"Downloading recording from: {media_url}")
-                            response_download = requests.get(media_url, auth=auth)
-                            response_download.raise_for_status()
+                            
+                            # Retry mechanism - recordings might not be immediately available
+                            import time
+                            max_retries = 5
+                            retry_delay = 3  # seconds
+                            
+                            response_download = None
+                            for attempt in range(max_retries):
+                                try:
+                                    response_download = requests.get(media_url, auth=auth, timeout=30)
+                                    response_download.raise_for_status()
+                                    logger.info(f"Successfully downloaded recording on attempt {attempt + 1}")
+                                    break
+                                except requests.exceptions.HTTPError as e:
+                                    if e.response.status_code == 404 and attempt < max_retries - 1:
+                                        logger.info(f"Recording not ready yet (attempt {attempt + 1}/{max_retries}), waiting {retry_delay}s...")
+                                        time.sleep(retry_delay)
+                                        retry_delay *= 1.5  # Exponential backoff
+                                    else:
+                                        raise
+                            
+                            if not response_download:
+                                raise Exception("Failed to download after all retries")
                             
                             # Create temporary file
                             with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
@@ -96,10 +116,13 @@ class DeepgramService:
                                 temp_path = temp_file.name
                             
                             # Transcribe using file
+                            logger.info(f"Starting Deepgram transcription for file: {temp_path}")
                             with open(temp_path, 'rb') as audio_file:
+                                payload = {"buffer": audio_file.read()}
                                 response = self.deepgram.listen.prerecorded.v("1").transcribe_file(
-                                    {"buffer": audio_file}, options
+                                    payload, options
                                 )
+                                logger.info("Deepgram transcription request completed")
                             
                             # Clean up temp file
                             os.unlink(temp_path)
