@@ -263,19 +263,35 @@ class DeepgramService:
                 audio_filename = f"deepgram_{audio_id}.wav"
                 
                 # Save to static directory that Flask can serve
-                static_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'audio')
+                # Use the app's root directory for better path resolution
+                app_root = os.path.dirname(os.path.dirname(__file__))
+                static_dir = os.path.join(app_root, 'static', 'audio')
                 os.makedirs(static_dir, exist_ok=True)
                 
                 audio_path = os.path.join(static_dir, audio_filename)
+                logger.info(f"Saving Deepgram audio to: {audio_path}")
                 
                 # Save audio file
-                with open(audio_path, 'wb') as f:
-                    f.write(audio_data)
+                try:
+                    with open(audio_path, 'wb') as f:
+                        f.write(audio_data)
+                    
+                    # Verify file was saved
+                    if os.path.exists(audio_path):
+                        file_size = os.path.getsize(audio_path)
+                        logger.info(f"Deepgram TTS file saved successfully: {audio_path} ({file_size} bytes)")
+                    else:
+                        logger.error(f"Failed to save Deepgram TTS file: {audio_path}")
+                        return None
+                        
+                except Exception as save_error:
+                    logger.error(f"Error saving Deepgram TTS file: {save_error}")
+                    return None
                 
                 # Return URL that Twilio can access
                 base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
                 audio_url = f"{base_url}/static/audio/{audio_filename}"
-                logger.info(f"Deepgram TTS file saved: {audio_url}")
+                logger.info(f"Deepgram TTS URL: {audio_url}")
                 return audio_url
             
             return None
