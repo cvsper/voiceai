@@ -184,36 +184,36 @@ def create_app():
                     from twilio.twiml.voice_response import VoiceResponse
                     response = VoiceResponse()
                     
-                    # Try to use Deepgram voice for AI response, with ElevenLabs fallback
+                    # Use ElevenLabs for AI response (temporarily bypassing Deepgram WAV issues)
                     try:
-                        if current_app.config.get('DEEPGRAM_API_KEY'):
-                            deepgram_service = get_deepgram_service()
-                            ai_audio_url = deepgram_service.text_to_speech_url(ai_response_text)
+                        if current_app.config.get('ELEVENLABS_API_KEY'):
+                            elevenlabs_service = get_elevenlabs_service()
+                            ai_audio_url = elevenlabs_service.text_to_speech_url(ai_response_text)
                             
                             if ai_audio_url:
                                 response.play(ai_audio_url)
-                                logger.info(f"Playing Deepgram AI response for call {call_sid}: {ai_audio_url}")
+                                logger.info(f"Playing ElevenLabs AI response for call {call_sid}: {ai_audio_url}")
                             else:
-                                raise Exception("Deepgram TTS failed, trying ElevenLabs")
+                                raise Exception("ElevenLabs TTS failed, trying Deepgram")
                         else:
-                            raise Exception("Deepgram not configured, trying ElevenLabs")
-                    except Exception as deepgram_error:
-                        logger.warning(f"Deepgram failed, trying ElevenLabs: {deepgram_error}")
-                        # Try ElevenLabs as fallback
+                            raise Exception("ElevenLabs not configured, trying Deepgram")
+                    except Exception as elevenlabs_error:
+                        logger.warning(f"ElevenLabs failed, trying Deepgram: {elevenlabs_error}")
+                        # Try Deepgram as fallback
                         try:
-                            if current_app.config.get('ELEVENLABS_API_KEY'):
-                                elevenlabs_service = get_elevenlabs_service()
-                                el_audio_url = elevenlabs_service.text_to_speech_url(ai_response_text)
+                            if current_app.config.get('DEEPGRAM_API_KEY'):
+                                deepgram_service = get_deepgram_service()
+                                ai_audio_url = deepgram_service.text_to_speech_url(ai_response_text)
                                 
-                                if el_audio_url:
-                                    response.play(el_audio_url)
-                                    logger.info(f"Playing ElevenLabs AI response for call {call_sid}: {el_audio_url}")
+                                if ai_audio_url:
+                                    response.play(ai_audio_url)
+                                    logger.info(f"Playing Deepgram AI response for call {call_sid}: {ai_audio_url}")
                                 else:
-                                    raise Exception("ElevenLabs also failed")
+                                    raise Exception("Deepgram also failed")
                             else:
-                                raise Exception("ElevenLabs not configured")
-                        except Exception as elevenlabs_error:
-                            logger.error(f"Both Deepgram and ElevenLabs failed: {elevenlabs_error}")
+                                raise Exception("Deepgram not configured")
+                        except Exception as deepgram_error:
+                            logger.error(f"Both ElevenLabs and Deepgram failed: {deepgram_error}")
                             # Final fallback to Twilio voice
                             response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                             logger.info(f"Using Twilio voice AI response for call {call_sid}")
