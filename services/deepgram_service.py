@@ -145,15 +145,28 @@ class DeepgramService:
                     channel = response.results.channels[0]
                     
                     if channel.alternatives:
-                        for paragraph in channel.alternatives[0].paragraphs.paragraphs:
-                            for sentence in paragraph.sentences:
-                                transcript_data.append({
-                                    'text': sentence.text,
-                                    'start': sentence.start,
-                                    'end': sentence.end,
-                                    'speaker': paragraph.speaker,
-                                    'confidence': sentence.confidence
-                                })
+                        alternative = channel.alternatives[0]
+                        
+                        # Check if we have paragraphs (diarization) or just transcript
+                        if hasattr(alternative, 'paragraphs') and alternative.paragraphs:
+                            for paragraph in alternative.paragraphs.paragraphs:
+                                for sentence in paragraph.sentences:
+                                    transcript_data.append({
+                                        'text': sentence.text,
+                                        'start': sentence.start,
+                                        'end': sentence.end,
+                                        'speaker': getattr(paragraph, 'speaker', 0),
+                                        'confidence': getattr(sentence, 'confidence', alternative.confidence if hasattr(alternative, 'confidence') else 0.9)
+                                    })
+                        else:
+                            # Fallback to simple transcript without diarization
+                            transcript_data.append({
+                                'text': alternative.transcript,
+                                'start': 0,
+                                'end': 0,
+                                'speaker': 0,
+                                'confidence': getattr(alternative, 'confidence', 0.9)
+                            })
                     
                     return transcript_data if transcript_data else self._get_mock_data()
                 
