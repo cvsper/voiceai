@@ -188,6 +188,75 @@ class DeepgramService:
             'confidence': 0.85
         }]
     
+    def text_to_speech(self, text):
+        """Convert text to speech using Deepgram's TTS API"""
+        try:
+            if not self.deepgram or not self.api_key:
+                logger.warning("Deepgram TTS not available - client not initialized")
+                return None
+            
+            # Use Deepgram's text-to-speech
+            from deepgram import SpeakOptions
+            
+            options = SpeakOptions(
+                model="aura-luna-en",  # Deepgram's natural voice model
+                encoding="mp3",
+                container="mp3"
+            )
+            
+            response = self.deepgram.speak.v("1").save(
+                text, 
+                options,
+                filename=None  # Return audio data instead of saving
+            )
+            
+            if response:
+                logger.info("Deepgram TTS conversion successful")
+                return response
+            else:
+                logger.warning("Deepgram TTS returned no data")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in Deepgram text-to-speech: {e}")
+            return None
+    
+    def text_to_speech_url(self, text):
+        """Convert text to speech and return a URL for Twilio to play"""
+        try:
+            import os
+            import uuid
+            
+            # Generate audio
+            audio_data = self.text_to_speech(text)
+            
+            if audio_data:
+                # Create unique filename
+                audio_id = str(uuid.uuid4())
+                audio_filename = f"deepgram_{audio_id}.mp3"
+                
+                # Save to static directory that Flask can serve
+                static_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'audio')
+                os.makedirs(static_dir, exist_ok=True)
+                
+                audio_path = os.path.join(static_dir, audio_filename)
+                
+                # Save audio file
+                with open(audio_path, 'wb') as f:
+                    f.write(audio_data)
+                
+                # Return URL that Twilio can access
+                base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
+                audio_url = f"{base_url}/static/audio/{audio_filename}"
+                logger.info(f"Deepgram TTS file saved: {audio_url}")
+                return audio_url
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error creating Deepgram TTS URL: {e}")
+            return None
+    
     def process_twilio_transcription(self, transcription_text, call_sid):
         """Process Twilio's built-in transcription"""
         try:

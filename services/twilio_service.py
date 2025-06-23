@@ -26,40 +26,32 @@ class TwilioService:
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
-            # Use the best available voice technology
+            # Use Deepgram voice for the most natural AI sound
             try:
-                # Check if ElevenLabs is configured and greeting exists
-                if current_app.config.get('ELEVENLABS_API_KEY'):
-                    try:
-                        # Try to use pre-generated ElevenLabs greeting
-                        import os
-                        greeting_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'greeting.mp3')
-                        if os.path.exists(greeting_path):
-                            audio_url = f"{base_url}/static/greeting.mp3"
-                            response.play(audio_url)
-                            logger.info(f"Using ElevenLabs voice greeting for call {call_sid}")
-                        else:
-                            raise FileNotFoundError("ElevenLabs greeting file not found")
-                    except Exception as eleven_error:
-                        logger.info(f"ElevenLabs not available, using premium Twilio voice: {eleven_error}")
-                        # Use the most natural Twilio voice available
-                        response.say(
-                            "Hello! Thank you for calling. I'm your AI assistant powered by advanced voice technology. How can I help you today?",
-                            voice='Polly.Joanna-Neural',  # Neural voice for more natural sound
-                            language='en-US'
-                        )
+                if current_app.config.get('DEEPGRAM_API_KEY'):
+                    # Generate greeting with Deepgram TTS
+                    from services.deepgram_service import DeepgramService
+                    deepgram_service = DeepgramService()
+                    
+                    greeting_text = "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram voice technology. How can I help you today?"
+                    
+                    # Try to generate Deepgram voice
+                    audio_url = deepgram_service.text_to_speech_url(greeting_text)
+                    
+                    if audio_url:
+                        response.play(audio_url)
+                        logger.info(f"Using Deepgram voice greeting for call {call_sid}")
+                    else:
+                        raise Exception("Deepgram TTS failed")
                 else:
-                    # Use premium Twilio neural voice
-                    response.say(
-                        "Hello! Thank you for calling. I'm your AI assistant powered by advanced voice technology. How can I help you today?",
-                        voice='Polly.Joanna-Neural',  # Neural voice for more natural sound
-                        language='en-US'
-                    )
-            except Exception as voice_error:
-                logger.warning(f"Premium voice failed, using standard voice: {voice_error}")
+                    raise Exception("Deepgram API key not configured")
+                    
+            except Exception as deepgram_error:
+                logger.info(f"Deepgram voice not available, using premium Twilio voice: {deepgram_error}")
+                # Fallback to premium Twilio neural voice
                 response.say(
-                    "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
-                    voice='alice',  # Fallback to standard voice
+                    "Hello! Thank you for calling. I'm your AI assistant powered by advanced voice technology. How can I help you today?",
+                    voice='Polly.Joanna-Neural',  # Neural voice for more natural sound
                     language='en-US'
                 )
             
