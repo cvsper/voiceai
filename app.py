@@ -279,6 +279,7 @@ def create_app():
                     db.session.add(transcript)
                     db.session.commit()
             
+            # Return empty response for failed transcriptions
             return '', 200
             
         except Exception as e:
