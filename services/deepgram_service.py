@@ -67,8 +67,24 @@ class DeepgramService:
                     language="en-US"
                 )
                 
+                # For Twilio URLs, we need to provide authentication
+                url_config = {"url": audio_file_url}
+                
+                # If it's a Twilio recording URL, add auth
+                if "twilio.com" in audio_file_url:
+                    # Twilio recording URLs require HTTP Basic Auth
+                    import base64
+                    twilio_sid = current_app.config.get('TWILIO_ACCOUNT_SID')
+                    twilio_token = current_app.config.get('TWILIO_AUTH_TOKEN')
+                    
+                    if twilio_sid and twilio_token:
+                        auth_string = base64.b64encode(f"{twilio_sid}:{twilio_token}".encode()).decode()
+                        url_config["headers"] = {
+                            "Authorization": f"Basic {auth_string}"
+                        }
+                
                 response = self.deepgram.listen.prerecorded.v("1").transcribe_url(
-                    {"url": audio_file_url}, options
+                    url_config, options
                 )
                 
                 # Process response
