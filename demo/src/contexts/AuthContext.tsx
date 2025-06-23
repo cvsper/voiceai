@@ -39,8 +39,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Update API service credentials
           (apiService as any).updateCredentials(username, password);
           
-          // Test the credentials by making a health check
-          await apiService.getHealth();
+          // Test the credentials by making a protected API call
+          await apiService.getDashboardMetrics();
           setIsAuthenticated(true);
         } catch (error) {
           // Credentials are invalid, remove them
@@ -63,8 +63,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const tempApiService = { ...apiService };
       (tempApiService as any).updateCredentials?.(username, password);
 
-      // Test the credentials
-      await apiService.getHealth();
+      // Test the credentials with a protected endpoint
+      await apiService.getDashboardMetrics();
 
       // If successful, save credentials and update state
       localStorage.setItem('voiceai_credentials', JSON.stringify({ username, password }));
