@@ -177,14 +177,45 @@ def create_app():
                     db.session.add(interaction)
                     db.session.commit()
                     
-                    # Trigger CRM webhook for high-confidence intents
-                    if intent_result['confidence'] > 0.7:
-                        get_crm_service().trigger_intent_detected(
-                            {**intent_result, 'user_input': transcription_text},
-                            {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
-                        )
+                    # Generate AI response TwiML to continue the conversation
+                    ai_response_text = intent_result['suggested_response']
                     
-                    # Handle appointment booking
+                    # Generate TwiML response with AI speech
+                    from twilio.twiml.voice_response import VoiceResponse
+                    response = VoiceResponse()
+                    
+                    # Try to use Deepgram voice for AI response
+                    try:
+                        if current_app.config.get('DEEPGRAM_API_KEY'):
+                            deepgram_service = get_deepgram_service()
+                            ai_audio_url = deepgram_service.text_to_speech_url(ai_response_text)
+                            
+                            if ai_audio_url:
+                                response.play(ai_audio_url)
+                                logger.info(f"Playing Deepgram AI response for call {call_sid}")
+                            else:
+                                # Fallback to Twilio voice
+                                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                                logger.info(f"Playing Twilio AI response for call {call_sid}")
+                        else:
+                            # Fallback to Twilio voice
+                            response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                            logger.info(f"Playing Twilio AI response for call {call_sid}")
+                    except Exception as voice_error:
+                        logger.error(f"Error generating AI voice response: {voice_error}")
+                        response.say(ai_response_text, voice='alice', language='en-US')
+                    
+                    # Continue recording for more conversation
+                    response.record(
+                        action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                        method='POST',
+                        max_length=300,
+                        transcribe=True,
+                        transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                        play_beep=False
+                    )
+                    
+                    # Handle appointment booking before triggering webhooks
                     if intent_result['intent'] == 'booking_appointment' and intent_result['confidence'] > 0.8:
                         appointment_details = get_openai_service().extract_appointment_details(transcription_text)
                         if appointment_details and appointment_details.get('date') and appointment_details.get('time'):
@@ -222,6 +253,16 @@ def create_app():
                                 appointment.to_dict(),
                                 {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
                             )
+                    
+                    # Trigger CRM webhook for high-confidence intents
+                    if intent_result['confidence'] > 0.7:
+                        get_crm_service().trigger_intent_detected(
+                            {**intent_result, 'user_input': transcription_text},
+                            {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
+                        )
+                    
+                    # Return TwiML to continue the conversation
+                    return str(response), 200, {'Content-Type': 'text/xml'}
             elif transcription_status == 'failed':
                 logger.warning(f"Twilio transcription failed for call {call_sid}")
                 # Still process the call for basic logging
