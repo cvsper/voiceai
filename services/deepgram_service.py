@@ -200,8 +200,9 @@ class DeepgramService:
             
             options = SpeakOptions(
                 model="aura-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
-                encoding="mp3",
-                container="mp3"
+                encoding="linear16",  # Use WAV format that's supported
+                sample_rate=22050,    # Standard sample rate for voice
+                container="wav"       # WAV container format
             )
             
             # Use the correct API method for streaming audio
@@ -259,7 +260,7 @@ class DeepgramService:
             if audio_data:
                 # Create unique filename
                 audio_id = str(uuid.uuid4())
-                audio_filename = f"deepgram_{audio_id}.mp3"
+                audio_filename = f"deepgram_{audio_id}.wav"
                 
                 # Save to static directory that Flask can serve
                 static_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'audio')
