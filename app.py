@@ -218,10 +218,6 @@ def create_app():
                             response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                             logger.info(f"Using Twilio voice AI response for call {call_sid}")
                     
-                    # TEMPORARY FIX: Always use Twilio voice until audio serving is fixed
-                    response = VoiceResponse()
-                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                    logger.info(f"Using Twilio voice AI response for call {call_sid} (temporary fix)")
                     
                     # Continue recording for more conversation
                     response.record(
