@@ -29,20 +29,26 @@ class TwilioService:
             # Use Deepgram voice for the most natural AI sound
             try:
                 if current_app.config.get('DEEPGRAM_API_KEY'):
+                    logger.info(f"Attempting Deepgram TTS for call {call_sid}")
                     # Generate greeting with Deepgram TTS
                     from services.deepgram_service import DeepgramService
                     deepgram_service = DeepgramService()
                     
                     greeting_text = "Hello! Thank you for calling. I'm your AI assistant with Aura Amalthea voice technology. How can I help you today?"
                     
-                    # Try to generate Deepgram voice
-                    audio_url = deepgram_service.text_to_speech_url(greeting_text)
-                    
-                    if audio_url:
-                        response.play(audio_url)
-                        logger.info(f"Using Deepgram voice greeting for call {call_sid}")
-                    else:
-                        raise Exception("Deepgram TTS failed")
+                    # Try to generate Deepgram voice with timeout protection
+                    try:
+                        audio_url = deepgram_service.text_to_speech_url(greeting_text)
+                        
+                        if audio_url:
+                            response.play(audio_url)
+                            logger.info(f"Using Deepgram voice greeting for call {call_sid}: {audio_url}")
+                        else:
+                            logger.warning(f"Deepgram TTS returned None for call {call_sid}")
+                            raise Exception("Deepgram TTS returned None")
+                    except Exception as tts_error:
+                        logger.error(f"Deepgram TTS generation failed for call {call_sid}: {tts_error}")
+                        raise Exception(f"Deepgram TTS failed: {tts_error}")
                 else:
                     raise Exception("Deepgram API key not configured")
                     
