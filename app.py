@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, send_from_directory, send_file
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, current_app
 from flask_cors import CORS
 from models import db, Call, Transcript, Interaction, Appointment, CRMWebhook
 from config import Config
