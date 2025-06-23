@@ -202,7 +202,7 @@ class DeepgramService:
                 model="aura-2-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="mulaw",     # μ-law encoding for telephony
                 sample_rate=8000,     # 8kHz telephony sample rate
-                container="wav"       # WAV container format
+                container="none"      # No container for direct Twilio compatibility
             )
             
             # Use the correct API method for streaming audio

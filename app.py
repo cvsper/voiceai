@@ -728,11 +728,11 @@ def create_app():
                 audio_data = current_app._deepgram_audio_cache[audio_id]
                 logger.info(f"Serving Deepgram audio from memory: {audio_id} ({len(audio_data)} bytes)")
                 
-                # Create response with proper headers
+                # Create response with proper headers for mulaw audio
                 from flask import Response
                 response = Response(
                     audio_data,
-                    mimetype='audio/wav',
+                    mimetype='audio/basic',  # Standard mimetype for mulaw audio
                     headers={
                         'Content-Length': len(audio_data),
                         'Accept-Ranges': 'bytes',
