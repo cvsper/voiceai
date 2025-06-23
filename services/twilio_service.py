@@ -33,7 +33,7 @@ class TwilioService:
                     from services.deepgram_service import DeepgramService
                     deepgram_service = DeepgramService()
                     
-                    greeting_text = "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram voice technology. How can I help you today?"
+                    greeting_text = "Hello! Thank you for calling. I'm your AI assistant with Aura Amalthea voice technology. How can I help you today?"
                     
                     # Try to generate Deepgram voice
                     audio_url = deepgram_service.text_to_speech_url(greeting_text)

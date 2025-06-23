@@ -195,27 +195,53 @@ class DeepgramService:
                 logger.warning("Deepgram TTS not available - client not initialized")
                 return None
             
-            # Use Deepgram's text-to-speech
+            # Use Deepgram's text-to-speech with Aura 2 - Amalthea voice
             from deepgram import SpeakOptions
             
             options = SpeakOptions(
-                model="aura-luna-en",  # Deepgram's natural voice model
+                model="aura-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="mp3",
                 container="mp3"
             )
             
-            response = self.deepgram.speak.v("1").save(
-                text, 
-                options,
-                filename=None  # Return audio data instead of saving
+            # Use the correct API method for streaming audio
+            logger.info(f"Generating Deepgram TTS with Aura Amalthea for text: {text[:50]}...")
+            
+            response = self.deepgram.speak.v("1").stream(
+                {"text": text}, 
+                options
             )
             
-            if response:
-                logger.info("Deepgram TTS conversion successful")
-                return response
+            # Handle the streaming response
+            if hasattr(response, 'stream'):
+                # Collect audio chunks
+                audio_chunks = []
+                for chunk in response.stream:
+                    audio_chunks.append(chunk)
+                
+                if audio_chunks:
+                    audio_data = b''.join(audio_chunks)
+                    logger.info(f"Deepgram TTS (Aura Amalthea) conversion successful - {len(audio_data)} bytes")
+                    return audio_data
+                else:
+                    logger.warning("Deepgram TTS stream contained no data")
+                    return None
+            elif hasattr(response, 'content'):
+                # Direct response content
+                logger.info(f"Deepgram TTS (Aura Amalthea) conversion successful - {len(response.content)} bytes")
+                return response.content
             else:
-                logger.warning("Deepgram TTS returned no data")
-                return None
+                # Try to read response as bytes
+                try:
+                    if isinstance(response, bytes):
+                        logger.info(f"Deepgram TTS (Aura Amalthea) conversion successful - {len(response)} bytes")
+                        return response
+                    else:
+                        logger.warning(f"Unexpected Deepgram response type: {type(response)}")
+                        return None
+                except Exception as resp_error:
+                    logger.error(f"Error processing Deepgram response: {resp_error}")
+                    return None
                 
         except Exception as e:
             logger.error(f"Error in Deepgram text-to-speech: {e}")
