@@ -719,6 +719,35 @@ def create_app():
     def health_check():
         return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
     
+    # Serve Deepgram audio from memory
+    @app.route('/api/audio/<audio_id>')
+    def serve_deepgram_audio(audio_id):
+        """Serve Deepgram audio data from memory cache"""
+        try:
+            if hasattr(current_app, '_deepgram_audio_cache') and audio_id in current_app._deepgram_audio_cache:
+                audio_data = current_app._deepgram_audio_cache[audio_id]
+                logger.info(f"Serving Deepgram audio from memory: {audio_id} ({len(audio_data)} bytes)")
+                
+                # Create response with proper headers
+                from flask import Response
+                response = Response(
+                    audio_data,
+                    mimetype='audio/wav',
+                    headers={
+                        'Content-Length': len(audio_data),
+                        'Accept-Ranges': 'bytes',
+                        'Cache-Control': 'no-cache'
+                    }
+                )
+                return response
+            else:
+                logger.error(f"Deepgram audio not found in cache: {audio_id}")
+                return jsonify({'error': 'Audio not found'}), 404
+                
+        except Exception as e:
+            logger.error(f"Error serving Deepgram audio {audio_id}: {e}")
+            return jsonify({'error': 'Error serving audio'}), 500
+    
     # Serve audio files for ElevenLabs TTS
     @app.route('/static/audio/<filename>')
     def serve_audio(filename):

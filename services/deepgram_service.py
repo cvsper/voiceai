@@ -251,46 +251,26 @@ class DeepgramService:
     def text_to_speech_url(self, text):
         """Convert text to speech and return a URL for Twilio to play"""
         try:
-            import os
             import uuid
+            from flask import current_app
             
             # Generate audio
             audio_data = self.text_to_speech(text)
             
             if audio_data:
-                # Create unique filename
+                # Store audio data in app context instead of file system
                 audio_id = str(uuid.uuid4())
-                audio_filename = f"deepgram_{audio_id}.wav"
                 
-                # Save to static directory that Flask can serve
-                # Use the app's root directory for better path resolution
-                app_root = os.path.dirname(os.path.dirname(__file__))
-                static_dir = os.path.join(app_root, 'static', 'audio')
-                os.makedirs(static_dir, exist_ok=True)
+                # Store in Flask app context for serving
+                if not hasattr(current_app, '_deepgram_audio_cache'):
+                    current_app._deepgram_audio_cache = {}
                 
-                audio_path = os.path.join(static_dir, audio_filename)
-                logger.info(f"Saving Deepgram audio to: {audio_path}")
-                
-                # Save audio file
-                try:
-                    with open(audio_path, 'wb') as f:
-                        f.write(audio_data)
-                    
-                    # Verify file was saved
-                    if os.path.exists(audio_path):
-                        file_size = os.path.getsize(audio_path)
-                        logger.info(f"Deepgram TTS file saved successfully: {audio_path} ({file_size} bytes)")
-                    else:
-                        logger.error(f"Failed to save Deepgram TTS file: {audio_path}")
-                        return None
-                        
-                except Exception as save_error:
-                    logger.error(f"Error saving Deepgram TTS file: {save_error}")
-                    return None
+                current_app._deepgram_audio_cache[audio_id] = audio_data
+                logger.info(f"Stored Deepgram audio in memory: {audio_id} ({len(audio_data)} bytes)")
                 
                 # Return URL that Twilio can access
                 base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
-                audio_url = f"{base_url}/static/audio/{audio_filename}"
+                audio_url = f"{base_url}/api/audio/{audio_id}"
                 logger.info(f"Deepgram TTS URL: {audio_url}")
                 return audio_url
             
