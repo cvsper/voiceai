@@ -133,6 +133,8 @@ def create_app():
             transcription_text = request.form.get('TranscriptionText')
             transcription_status = request.form.get('TranscriptionStatus')
             
+            logger.info(f"Transcription webhook for {call_sid}: status={transcription_status}, text_length={len(transcription_text) if transcription_text else 0}")
+            
             if transcription_status == 'completed' and transcription_text:
                 # Find the call
                 call = Call.query.filter_by(call_sid=call_sid).first()
@@ -228,19 +230,24 @@ def create_app():
                 call.duration = int(recording_duration) if recording_duration else None
                 db.session.commit()
                 
-                # Process recording with Deepgram for better transcription
+                # Process recording with Deepgram for better transcription (optional)
                 if recording_url:
-                    transcript_data = get_deepgram_service().transcribe_file(recording_url)
-                    for transcript_item in transcript_data:
-                        transcript = Transcript(
-                            call_id=call.id,
-                            speaker=f"speaker_{transcript_item['speaker']}",
-                            text=transcript_item['text'],
-                            confidence=transcript_item['confidence'],
-                            is_final=True
-                        )
-                        db.session.add(transcript)
-                    db.session.commit()
+                    try:
+                        transcript_data = get_deepgram_service().transcribe_file(recording_url)
+                        if transcript_data:
+                            for transcript_item in transcript_data:
+                                transcript = Transcript(
+                                    call_id=call.id,
+                                    speaker=f"speaker_{transcript_item['speaker']}",
+                                    text=transcript_item['text'],
+                                    confidence=transcript_item['confidence'],
+                                    is_final=True
+                                )
+                                db.session.add(transcript)
+                            db.session.commit()
+                            logger.info(f"Deepgram transcription completed for recording {recording_url}")
+                    except Exception as e:
+                        logger.warning(f"Deepgram transcription failed for {recording_url}, will rely on Twilio transcription: {e}")
             
             return '', 200
             
