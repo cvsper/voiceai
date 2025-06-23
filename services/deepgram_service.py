@@ -199,7 +199,7 @@ class DeepgramService:
             from deepgram import SpeakOptions
             
             options = SpeakOptions(
-                model="aura-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
+                model="aura-2-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
                 encoding="linear16",  # Use WAV format that's supported
                 sample_rate=24000,    # Supported sample rate for high quality voice
                 container="wav"       # WAV container format
