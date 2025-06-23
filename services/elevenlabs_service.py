@@ -147,3 +147,36 @@ class ElevenLabsService:
         except Exception as e:
             logger.error(f"Error saving audio file {filename}: {e}")
             return False
+    
+    def text_to_speech_url(self, text, voice_id=None):
+        """Convert text to speech and return a URL for Twilio to play"""
+        try:
+            import os
+            import uuid
+            from flask import url_for
+            
+            # Generate audio
+            audio_data = self.text_to_speech_stream(text, voice_id)
+            
+            if audio_data:
+                # Create unique filename
+                audio_id = str(uuid.uuid4())
+                audio_filename = f"{audio_id}.mp3"
+                
+                # Save to static directory that Flask can serve
+                static_dir = os.path.join(current_app.instance_path, 'static', 'audio')
+                os.makedirs(static_dir, exist_ok=True)
+                
+                audio_path = os.path.join(static_dir, audio_filename)
+                
+                if self.save_audio_file(audio_data, audio_path):
+                    # Return URL that Twilio can access
+                    base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
+                    audio_url = f"{base_url}/static/audio/{audio_filename}"
+                    return audio_url
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error creating audio URL: {e}")
+            return None

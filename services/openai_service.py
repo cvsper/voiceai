@@ -201,3 +201,22 @@ class OpenAIService:
         except Exception as e:
             logger.error(f"Error summarizing call: {e}")
             return "Unable to generate call summary."
+    
+    def generate_text(self, prompt, max_tokens=150):
+        """Generate text response using OpenAI"""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant. Be concise and professional."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens,
+                temperature=0.7
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Error generating text: {e}")
+            return "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?"

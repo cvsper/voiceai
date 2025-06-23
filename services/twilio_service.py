@@ -21,30 +21,50 @@ class TwilioService:
             raise
     
     def handle_incoming_call(self, call_sid, from_number, to_number):
-        """Handle incoming call and return TwiML response"""
+        """Handle incoming call and return TwiML response with AI-generated greeting"""
         try:
+            from services.openai_service import OpenAIService
+            from services.elevenlabs_service import ElevenLabsService
+            
             response = VoiceResponse()
             
-            # Greet the caller
-            response.say(
-                "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
-                voice='alice',
-                language='en-US'
-            )
+            # Generate dynamic AI greeting
+            try:
+                openai_service = OpenAIService()
+                elevenlabs_service = ElevenLabsService()
+                
+                # Generate personalized greeting based on caller info
+                greeting_prompt = f"Generate a warm, professional greeting for an incoming call from {from_number}. Keep it under 30 words and ask how you can help them today."
+                
+                ai_greeting = openai_service.generate_text(greeting_prompt)
+                
+                # Convert to speech using ElevenLabs
+                audio_url = elevenlabs_service.text_to_speech_url(ai_greeting)
+                
+                if audio_url:
+                    # Play the AI-generated audio
+                    response.play(audio_url)
+                else:
+                    # Fallback to text-to-speech
+                    response.say(ai_greeting, voice='alice', language='en-US')
+                    
+            except Exception as ai_error:
+                logger.warning(f"AI greeting failed, using default: {ai_error}")
+                # Fallback greeting
+                response.say(
+                    "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
+                    voice='alice',
+                    language='en-US'
+                )
             
-            # Start recording for transcription
+            # Start recording for transcription and conversation
             response.record(
                 action=f"{current_app.config['BASE_URL']}/webhooks/recording",
                 method='POST',
                 max_length=300,  # 5 minutes max
                 transcribe=True,
-                transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe"
-            )
-            
-            # Start streaming audio to Deepgram for real-time transcription
-            connect = response.connect()
-            stream = connect.stream(
-                url=f"wss://{current_app.config['BASE_URL'].replace('https://', '').replace('http://', '')}/websocket/stream"
+                transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                play_beep=False  # More natural conversation
             )
             
             return str(response)
