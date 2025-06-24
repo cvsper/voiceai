@@ -1,7 +1,7 @@
 import openai
 import json
 import logging
-from quart import current_app
+from flask import current_app
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ import base64
 import json
 import logging
 import os
-from quart import current_app
+from flask import current_app
 from deepgram import (
     DeepgramClient,
     DeepgramClientOptions,

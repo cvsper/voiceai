@@ -1,4 +1,4 @@
-quart-sqlalchemy==3.0.4
+Flask-SQLAlchemy==3.0.5
 Quart==0.19.4
 quart-cors==0.8.0
 Hypercorn==0.16.0

@@ -1,6 +1,5 @@
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
-from quart import current_app
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +12,8 @@ class TwilioService:
         """Ensure Twilio client is initialized when needed"""
         if self.client is None:
             try:
+                # Import here to ensure app context is available
+                from quart import current_app
                 self.client = Client(
                     current_app.config['TWILIO_ACCOUNT_SID'],
                     current_app.config['TWILIO_AUTH_TOKEN']
@@ -24,6 +25,7 @@ class TwilioService:
     def handle_incoming_call(self, call_sid, from_number, to_number):
         """Handle incoming call by streaming to Deepgram Voice Agent."""
         try:
+            from quart import current_app
             self._ensure_client()  # Ensure client is initialized within app context
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', '')
@@ -53,6 +55,7 @@ class TwilioService:
     def handle_conference_call(self, call_sid, participants):
         """Set up conference call for monitoring human-to-human conversations"""
         try:
+            from quart import current_app
             response = VoiceResponse()
             
             # Create conference room
@@ -77,6 +80,7 @@ class TwilioService:
     def generate_ai_response(self, user_input, call_sid):
         """Generate TwiML response with AI-generated speech"""
         try:
+            from quart import current_app
             response = VoiceResponse()
             
             # This will be replaced with actual AI response
@@ -117,6 +121,7 @@ class TwilioService:
     def make_outbound_call(self, to_number, message):
         """Make an outbound call with a message"""
         try:
+            from quart import current_app
             self._ensure_client()
             call = self.client.calls.create(
                 twiml=f'<Response><Say>{message}</Say></Response>',

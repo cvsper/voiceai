@@ -2,7 +2,7 @@ import requests
 import json
 import logging
 from datetime import datetime
-from quart import current_app
+from flask import current_app
 from models import CRMWebhook, db
 
 logger = logging.getLogger(__name__)

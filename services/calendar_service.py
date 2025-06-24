@@ -6,7 +6,7 @@ from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 import pytz
 import logging
-from quart import current_app
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
