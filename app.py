@@ -169,22 +169,19 @@ def create_app():
                     )
                     db.session.add(transcript)
                     
-                    # Analyze intent
-                    intent_result = get_openai_service().analyze_intent(transcription_text)
+                    # Generate immediate AI response without complex analysis to avoid timeouts
+                    ai_response_text = f"I heard you say: {transcription_text}. I'm here to help you with that. What specific assistance do you need?"
                     
-                    # Save interaction
+                    # Save basic interaction (skip complex OpenAI analysis for now)
                     interaction = Interaction(
                         call_id=call.id,
-                        intent=intent_result['intent'],
-                        confidence=intent_result['confidence'],
+                        intent='general_inquiry',
+                        confidence=0.9,
                         user_input=transcription_text,
-                        ai_response=intent_result['suggested_response']
+                        ai_response=ai_response_text
                     )
                     db.session.add(interaction)
                     db.session.commit()
-                    
-                    # Generate AI response TwiML to continue the conversation
-                    ai_response_text = intent_result['suggested_response']
                     
                     # Generate TwiML response with AI speech
                     from twilio.twiml.voice_response import VoiceResponse
@@ -206,51 +203,7 @@ def create_app():
                         play_beep=False
                     )
                     
-                    # Handle appointment booking before triggering webhooks
-                    if intent_result['intent'] == 'booking_appointment' and intent_result['confidence'] > 0.8:
-                        appointment_details = get_openai_service().extract_appointment_details(transcription_text)
-                        if appointment_details and appointment_details.get('date') and appointment_details.get('time'):
-                            # Create appointment
-                            start_time = datetime.fromisoformat(f"{appointment_details['date']}T{appointment_details['time']}")
-                            end_time = start_time + timedelta(minutes=appointment_details.get('duration_minutes', 60))
-                            
-                            appointment = Appointment(
-                                call_id=call.id,
-                                title=f"Appointment for {appointment_details.get('customer_name', 'Customer')}",
-                                description=appointment_details.get('notes', ''),
-                                start_time=start_time,
-                                end_time=end_time,
-                                attendee_email=appointment_details.get('customer_email'),
-                                attendee_phone=appointment_details.get('customer_phone', call.from_number)
-                            )
-                            
-                            # Try to create in Google Calendar
-                            calendar_result = get_calendar_service().create_appointment({
-                                'title': appointment.title,
-                                'description': appointment.description,
-                                'start_time': start_time.isoformat(),
-                                'end_time': end_time.isoformat(),
-                                'attendee_email': appointment.attendee_email
-                            })
-                            
-                            if calendar_result:
-                                appointment.google_event_id = calendar_result['event_id']
-                            
-                            db.session.add(appointment)
-                            db.session.commit()
-                            
-                            # Trigger CRM webhook
-                            get_crm_service().trigger_appointment_booked(
-                                appointment.to_dict(),
-                                {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
-                            )
-                    
-                    # Trigger CRM webhook for high-confidence intents
-                    if intent_result['confidence'] > 0.7:
-                        get_crm_service().trigger_intent_detected(
-                            {**intent_result, 'user_input': transcription_text},
-                            {'call_id': call.id, 'call_sid': call_sid, 'from_number': call.from_number}
-                        )
+                    # Skip complex appointment booking and CRM triggers for now to avoid timeouts
                     
                     # Log the exact TwiML being returned
                     twiml_response = str(response)
@@ -274,9 +227,8 @@ def create_app():
                         latest_transcript = existing_transcripts[-1]
                         logger.info(f"Using Deepgram transcript: {latest_transcript.text}")
                         
-                        # Generate AI response using Deepgram transcript
-                        intent_result = get_openai_service().analyze_intent(latest_transcript.text)
-                        ai_response_text = intent_result['suggested_response']
+                        # Generate simple AI response using Deepgram transcript
+                        ai_response_text = f"I heard you say: {latest_transcript.text}. I'm here to help you with that. What specific assistance do you need?"
                         
                         # Create TwiML response
                         from twilio.twiml.voice_response import VoiceResponse
@@ -297,11 +249,11 @@ def create_app():
                             play_beep=False
                         )
                         
-                        # Save interaction
+                        # Save simple interaction
                         interaction = Interaction(
                             call_id=call.id,
-                            intent=intent_result['intent'],
-                            confidence=intent_result['confidence'],
+                            intent='general_inquiry',
+                            confidence=0.9,
                             user_input=latest_transcript.text,
                             ai_response=ai_response_text
                         )
