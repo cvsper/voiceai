@@ -146,7 +146,7 @@ def create_app():
     
     @app.route('/webhooks/transcribe', methods=['POST'])
     def handle_transcription_webhook():
-        """Handle Twilio transcription webhook"""
+        """Handle Twilio transcription webhook - just save data, don't return TwiML"""
         try:
             call_sid = request.form.get('CallSid')
             transcription_text = request.form.get('TranscriptionText')
@@ -181,36 +181,14 @@ def create_app():
                         ai_response=ai_response_text
                     )
                     db.session.add(interaction)
+                    
+                    # Store the AI response to be used by recording webhook
+                    if not hasattr(current_app, '_pending_responses'):
+                        current_app._pending_responses = {}
+                    current_app._pending_responses[call_sid] = ai_response_text
+                    
                     db.session.commit()
-                    
-                    # Generate TwiML response with AI speech
-                    from twilio.twiml.voice_response import VoiceResponse
-                    response = VoiceResponse()
-                    
-                    # Use reliable Twilio voice for AI responses (Deepgram greeting works, but responses are having issues)
-                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                    logger.info(f"AI responding with Twilio voice: {ai_response_text[:50]}...")
-                    
-                    
-                    # Continue recording for more conversation with shorter timeout
-                    response.record(
-                        action=f"{current_app.config['BASE_URL']}/webhooks/recording",
-                        method='POST',
-                        max_length=30,  # Shorter recordings
-                        timeout=10,     # 10 second timeout
-                        transcribe=True,
-                        transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
-                        play_beep=False
-                    )
-                    
-                    # Skip complex appointment booking and CRM triggers for now to avoid timeouts
-                    
-                    # Log the exact TwiML being returned
-                    twiml_response = str(response)
-                    logger.info(f"AI Response TwiML: {twiml_response}")
-                    
-                    # Return TwiML to continue the conversation
-                    return twiml_response, 200, {'Content-Type': 'text/xml'}
+                    logger.info(f"Saved AI response for {call_sid}: {ai_response_text[:50]}...")
             elif transcription_status == 'failed':
                 logger.warning(f"Twilio transcription failed for call {call_sid}")
                 # Use Deepgram transcription when Twilio fails
@@ -284,11 +262,42 @@ def create_app():
     
     @app.route('/webhooks/recording', methods=['POST'])
     def handle_recording_webhook():
-        """Handle Twilio recording webhook"""
+        """Handle Twilio recording webhook and provide AI response"""
         try:
             call_sid = request.form.get('CallSid')
             recording_url = request.form.get('RecordingUrl')
             recording_duration = request.form.get('RecordingDuration')
+            
+            logger.info(f"Recording webhook for {call_sid}: {recording_url}")
+            
+            # Check if we have a pending AI response for this call
+            if hasattr(current_app, '_pending_responses') and call_sid in current_app._pending_responses:
+                ai_response_text = current_app._pending_responses[call_sid]
+                del current_app._pending_responses[call_sid]  # Remove after use
+                
+                logger.info(f"Found pending AI response for {call_sid}: {ai_response_text[:50]}...")
+                
+                # Generate TwiML response with AI speech
+                from twilio.twiml.voice_response import VoiceResponse
+                response = VoiceResponse()
+                
+                # Play AI response
+                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                
+                # Continue recording for more conversation
+                response.record(
+                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                    method='POST',
+                    max_length=30,
+                    timeout=10,
+                    transcribe=True,
+                    transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                    play_beep=False
+                )
+                
+                twiml_response = str(response)
+                logger.info(f"Recording webhook returning AI response TwiML: {twiml_response}")
+                return twiml_response, 200, {'Content-Type': 'text/xml'}
             
             # Update call with recording info
             call = Call.query.filter_by(call_sid=call_sid).first()
