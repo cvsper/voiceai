@@ -93,14 +93,30 @@ def create_app():
             return f(*args, **kwargs)
         return decorated_function
     
-    # Initialize database with app - but override teardown to be Quart-compatible
+    # Monkey patch Flask-SQLAlchemy to prevent teardown registration
+    original_init_app = db.init_app
+    def patched_init_app(app_instance):
+        # Call the original init_app but intercept teardown registration
+        original_teardown_appcontext = app_instance.teardown_appcontext
+        
+        def noop_teardown_appcontext(func):
+            # Don't register Flask-SQLAlchemy's teardown
+            if hasattr(func, '__name__') and 'teardown' in func.__name__.lower():
+                return func  # Return but don't register
+            return original_teardown_appcontext(func)
+        
+        app_instance.teardown_appcontext = noop_teardown_appcontext
+        result = original_init_app(app_instance)
+        app_instance.teardown_appcontext = original_teardown_appcontext  # Restore for other uses
+        return result
+    
+    db.init_app = patched_init_app
+    
+    # Initialize database with app
     db.init_app(app)
     
     # Disable automatic teardown and commit behaviors
     app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = False
-    
-    # Override Flask-SQLAlchemy's teardown to prevent async context issues
-    db._teardown_session = lambda exc: None
     
     # Initialize database tables directly using SQLAlchemy
     try:
