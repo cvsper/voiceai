@@ -260,19 +260,68 @@ def create_app():
                     return twiml_response, 200, {'Content-Type': 'text/xml'}
             elif transcription_status == 'failed':
                 logger.warning(f"Twilio transcription failed for call {call_sid}")
-                # Still process the call for basic logging
+                # Use Deepgram transcription when Twilio fails
+                logger.info("Twilio transcription failed, checking for Deepgram transcription...")
                 call = Call.query.filter_by(call_sid=call_sid).first()
                 if call:
-                    # Create a basic transcript indicating transcription failed
-                    transcript = Transcript(
-                        call_id=call.id,
-                        speaker='system',
-                        text='[Transcription unavailable - call was recorded but transcription failed]',
-                        confidence=0.0,
-                        is_final=True
-                    )
-                    db.session.add(transcript)
-                    db.session.commit()
+                    # Check if we have Deepgram transcripts
+                    existing_transcripts = Transcript.query.filter_by(call_id=call.id).filter(
+                        ~Transcript.text.like('%Mock%')
+                    ).all()
+                    
+                    if existing_transcripts:
+                        # Use the most recent Deepgram transcript
+                        latest_transcript = existing_transcripts[-1]
+                        logger.info(f"Using Deepgram transcript: {latest_transcript.text}")
+                        
+                        # Generate AI response using Deepgram transcript
+                        intent_result = get_openai_service().analyze_intent(latest_transcript.text)
+                        ai_response_text = intent_result['suggested_response']
+                        
+                        # Create TwiML response
+                        from twilio.twiml.voice_response import VoiceResponse
+                        response = VoiceResponse()
+                        
+                        # Use Twilio voice for AI response
+                        response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                        logger.info(f"AI responding with Twilio voice: {ai_response_text[:50]}...")
+                        
+                        # Continue recording
+                        response.record(
+                            action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                            method='POST',
+                            max_length=30,
+                            timeout=10,
+                            transcribe=True,
+                            transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                            play_beep=False
+                        )
+                        
+                        # Save interaction
+                        interaction = Interaction(
+                            call_id=call.id,
+                            intent=intent_result['intent'],
+                            confidence=intent_result['confidence'],
+                            user_input=latest_transcript.text,
+                            ai_response=ai_response_text
+                        )
+                        db.session.add(interaction)
+                        db.session.commit()
+                        
+                        twiml_response = str(response)
+                        logger.info(f"AI Response TwiML (Deepgram backup): {twiml_response}")
+                        return twiml_response, 200, {'Content-Type': 'text/xml'}
+                    else:
+                        # Create a basic transcript indicating transcription failed
+                        transcript = Transcript(
+                            call_id=call.id,
+                            speaker='system',
+                            text='[Transcription unavailable - both Twilio and Deepgram failed]',
+                            confidence=0.0,
+                            is_final=True
+                        )
+                        db.session.add(transcript)
+                        db.session.commit()
             
             # Return empty response for failed transcriptions
             return '', 200

@@ -26,50 +26,13 @@ class TwilioService:
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
-            # Generate initial Deepgram greeting
-            logger.info(f"Generating Deepgram greeting for call {call_sid}")
-            
-            try:
-                if current_app.config.get('DEEPGRAM_API_KEY'):
-                    from services.deepgram_service import DeepgramService
-                    deepgram_service = DeepgramService()
-                    
-                    greeting_text = "Hello! Thank you for calling. I'm your AI assistant with Aura Amalthea voice technology. How can I help you today?"
-                    
-                    # Generate Deepgram audio
-                    audio_data = deepgram_service.text_to_speech(greeting_text)
-                    
-                    if audio_data:
-                        # Save to file system for persistence across restarts
-                        import uuid
-                        import os
-                        audio_id = str(uuid.uuid4())
-                        
-                        # Save to static directory
-                        static_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'audio')
-                        os.makedirs(static_dir, exist_ok=True)
-                        
-                        audio_filename = f"deepgram_{audio_id}.wav"
-                        audio_path = os.path.join(static_dir, audio_filename)
-                        
-                        with open(audio_path, 'wb') as f:
-                            f.write(audio_data)
-                        
-                        audio_url = f"{base_url}/static/audio/{audio_filename}"
-                        response.play(audio_url)
-                        logger.info(f"Playing Deepgram greeting: {audio_url}")
-                    else:
-                        raise Exception("Deepgram TTS failed")
-                else:
-                    raise Exception("Deepgram not configured")
-                    
-            except Exception as e:
-                logger.warning(f"Deepgram greeting failed, using Twilio: {e}")
-                response.say(
-                    "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
-                    voice='Polly.Joanna-Neural',
-                    language='en-US'
-                )
+            # Use reliable Twilio voice for now to get conversation working
+            logger.info(f"Using Twilio voice greeting for call {call_sid}")
+            response.say(
+                "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
+                voice='Polly.Joanna-Neural',
+                language='en-US'
+            )
             
             # Add immediate AI prompt after greeting
             response.say(
