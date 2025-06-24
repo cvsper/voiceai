@@ -146,7 +146,7 @@ def create_app():
     
     @app.route('/webhooks/transcribe', methods=['POST'])
     def handle_transcription_webhook():
-        """Handle Twilio transcription webhook and provide immediate AI response"""
+        """Handle Twilio transcription webhook - save response and return empty"""
         try:
             call_sid = request.form.get('CallSid')
             transcription_text = request.form.get('TranscriptionText')
@@ -181,30 +181,14 @@ def create_app():
                         ai_response=ai_response_text
                     )
                     db.session.add(interaction)
+                    
+                    # Store the AI response for the next part of the call
+                    if not hasattr(current_app, '_ai_responses'):
+                        current_app._ai_responses = {}
+                    current_app._ai_responses[call_sid] = ai_response_text
+                    
                     db.session.commit()
-                    
-                    # Generate TwiML response with AI speech immediately
-                    from twilio.twiml.voice_response import VoiceResponse
-                    response = VoiceResponse()
-                    
-                    # Play AI response
-                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                    logger.info(f"AI responding immediately: {ai_response_text[:50]}...")
-                    
-                    # Continue recording for more conversation
-                    response.record(
-                        action=f"{current_app.config['BASE_URL']}/webhooks/recording",
-                        method='POST',
-                        max_length=30,
-                        timeout=10,
-                        transcribe=True,
-                        transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
-                        play_beep=False
-                    )
-                    
-                    twiml_response = str(response)
-                    logger.info(f"Transcription webhook returning AI response TwiML: {twiml_response}")
-                    return twiml_response, 200, {'Content-Type': 'text/xml'}
+                    logger.info(f"Saved AI response for next call phase: {ai_response_text[:50]}...")
             elif transcription_status == 'failed':
                 logger.warning(f"Twilio transcription failed for call {call_sid}")
                 # Use Deepgram transcription when Twilio fails
@@ -278,7 +262,7 @@ def create_app():
     
     @app.route('/webhooks/recording', methods=['POST'])
     def handle_recording_webhook():
-        """Handle Twilio recording webhook - just update call data"""
+        """Handle Twilio recording webhook and redirect to AI response"""
         try:
             call_sid = request.form.get('CallSid')
             recording_url = request.form.get('RecordingUrl')
@@ -286,62 +270,95 @@ def create_app():
             
             logger.info(f"Recording webhook for {call_sid}: {recording_url}")
             
-            # Update call with recording info
+            # Update call with recording info first
             call = Call.query.filter_by(call_sid=call_sid).first()
             if call:
                 call.recording_url = recording_url
                 call.duration = int(recording_duration) if recording_duration else None
                 db.session.commit()
-                
-                # Process recording with Deepgram for better transcription (optional)
-                if recording_url:
-                    try:
-                        # Add a small delay before processing to ensure recording is ready
-                        import threading
-                        import time
-                        
-                        # Capture the current app context for the background thread
-                        current_app_instance = current_app._get_current_object()
-                        call_id_for_thread = call.id
-                        
-                        def process_deepgram_delayed():
-                            time.sleep(5)  # Wait 5 seconds before trying Deepgram
-                            # Create Flask application context for the background thread
-                            with current_app_instance.app_context():
-                                try:
-                                    logger.info(f"Starting delayed Deepgram processing for {recording_url}")
-                                    transcript_data = get_deepgram_service().transcribe_file(recording_url)
-                                    if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
-                                        # Only save if we got real transcription data (not mock)
-                                        for transcript_item in transcript_data:
-                                            transcript = Transcript(
-                                                call_id=call_id_for_thread,
-                                                speaker=f"speaker_{transcript_item['speaker']}",
-                                                text=transcript_item['text'],
-                                                confidence=transcript_item['confidence'],
-                                                is_final=True
-                                            )
-                                            db.session.add(transcript)
-                                        db.session.commit()
-                                        logger.info(f"Deepgram transcription completed for recording {recording_url}")
-                                    else:
-                                        logger.info("Deepgram returned mock data, skipping database save")
-                                except Exception as e:
-                                    logger.warning(f"Delayed Deepgram transcription failed for {recording_url}: {e}")
-                        
-                        # Start background thread for Deepgram processing
-                        thread = threading.Thread(target=process_deepgram_delayed)
-                        thread.daemon = True
-                        thread.start()
-                        
-                    except Exception as e:
-                        logger.warning(f"Failed to start Deepgram processing thread: {e}")
             
-            return '', 200
+            # Use Redirect to ensure AI response gets played
+            from twilio.twiml.voice_response import VoiceResponse
+            response = VoiceResponse()
+            
+            # Redirect to AI response endpoint with a small delay to ensure transcription completes
+            redirect_url = f"{current_app.config['BASE_URL']}/webhooks/ai-response?CallSid={call_sid}"
+            response.redirect(redirect_url, method='POST')
+            
+            logger.info(f"Recording webhook redirecting to: {redirect_url}")
+            return str(response), 200, {'Content-Type': 'text/xml'}
             
         except Exception as e:
             logger.error(f"Error in recording webhook: {e}")
             return '', 500
+    
+    @app.route('/webhooks/ai-response', methods=['POST'])
+    def handle_ai_response():
+        """Deliver AI response after recording and transcription complete"""
+        try:
+            call_sid = request.form.get('CallSid') or request.args.get('CallSid')
+            logger.info(f"AI response webhook for {call_sid}")
+            
+            # Wait a moment for transcription to complete if needed
+            import time
+            max_wait = 10  # seconds
+            wait_interval = 0.5  # seconds
+            waited = 0
+            
+            # Check for AI response with retry logic
+            ai_response_text = None
+            while waited < max_wait:
+                if hasattr(current_app, '_ai_responses') and call_sid in current_app._ai_responses:
+                    ai_response_text = current_app._ai_responses[call_sid]
+                    del current_app._ai_responses[call_sid]  # Remove after use
+                    break
+                time.sleep(wait_interval)
+                waited += wait_interval
+            
+            # Generate TwiML response
+            from twilio.twiml.voice_response import VoiceResponse
+            response = VoiceResponse()
+            
+            if ai_response_text:
+                logger.info(f"Playing AI response: {ai_response_text[:50]}...")
+                # Play AI response
+                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                
+                # Continue recording for more conversation
+                response.record(
+                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                    method='POST',
+                    max_length=30,
+                    timeout=10,
+                    transcribe=True,
+                    transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                    play_beep=False
+                )
+            else:
+                # Fallback if no AI response ready
+                logger.warning(f"No AI response ready for {call_sid}, using fallback")
+                response.say("I'm processing your request. Please continue.", voice='Polly.Joanna-Neural', language='en-US')
+                response.record(
+                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                    method='POST',
+                    max_length=30,
+                    timeout=10,
+                    transcribe=True,
+                    transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                    play_beep=False
+                )
+            
+            twiml_response = str(response)
+            logger.info(f"AI response TwiML: {twiml_response}")
+            return twiml_response, 200, {'Content-Type': 'text/xml'}
+            
+        except Exception as e:
+            logger.error(f"Error in AI response webhook: {e}")
+            # Fallback response
+            from twilio.twiml.voice_response import VoiceResponse
+            response = VoiceResponse()
+            response.say("I'm sorry, there was an issue processing your request. Please try again.", voice='Polly.Joanna-Neural', language='en-US')
+            return str(response), 200, {'Content-Type': 'text/xml'}
     
     # API ENDPOINTS
     
