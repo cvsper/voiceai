@@ -153,6 +153,7 @@ def create_app():
             transcription_status = request.form.get('TranscriptionStatus')
             
             logger.info(f"Transcription webhook for {call_sid}: status={transcription_status}, text_length={len(transcription_text) if transcription_text else 0}")
+            logger.info(f"Transcription text: '{transcription_text}'")
             
             if transcription_status == 'completed' and transcription_text:
                 # Find the call
