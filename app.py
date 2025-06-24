@@ -102,9 +102,14 @@ def create_app():
     # Override Flask-SQLAlchemy's teardown to prevent async context issues
     db._teardown_session = lambda exc: None
     
-    # Create tables synchronously during app creation
-    with app.app_context():
-        db.create_all()
+    # Initialize database tables directly using SQLAlchemy
+    try:
+        from sqlalchemy import create_engine
+        engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+        db.metadata.create_all(engine)
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
+        # Continue anyway - tables might already exist
     
     # WEBHOOK ENDPOINTS
     
