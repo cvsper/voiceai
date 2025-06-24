@@ -169,21 +169,23 @@ def create_app():
                         call.end_time = datetime.utcnow()
                     db.session.commit()
             
-            # Generate TwiML response
-            if call_status == 'ringing':
-                try:
-                    twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
-                    logger.info(f"Generated TwiML: {twiml_response}")
-                except Exception as twiml_error:
-                    logger.error(f"Error generating TwiML: {twiml_error}")
-                    # Fallback TwiML
-                    twiml_response = '''<?xml version="1.0" encoding="UTF-8"?>
+            # Generate TwiML response within app context
+            async with app.app_context():
+                if call_status == 'ringing':
+                    try:
+                        twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
+                        logger.info(f"Generated TwiML: {twiml_response}")
+                    except Exception as twiml_error:
+                        logger.error(f"Error generating TwiML: {twiml_error}")
+                        # Fallback TwiML
+                        base_url = current_app.config['BASE_URL']
+                        twiml_response = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="alice" language="en-US">Hello! Thank you for calling. I'm your AI assistant. How can I help you today?</Say>
-    <Record action="''' + current_app.config['BASE_URL'] + '''/webhooks/recording" method="POST" maxLength="300" transcribe="true" transcribeCallback="''' + current_app.config['BASE_URL'] + '''/webhooks/transcribe" playBeep="false" />
+    <Record action="{base_url}/webhooks/recording" method="POST" maxLength="300" transcribe="true" transcribeCallback="{base_url}/webhooks/transcribe" playBeep="false" />
 </Response>'''
-            else:
-                twiml_response = '<Response></Response>'
+                else:
+                    twiml_response = '<Response></Response>'
             
             return twiml_response, 200, {'Content-Type': 'text/xml'}
             
