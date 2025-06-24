@@ -254,25 +254,39 @@ class DeepgramService:
         """Convert text to speech and return a URL for Twilio to play"""
         try:
             import uuid
+            import os
+            import hashlib
             from flask import current_app
             
-            # Generate audio
+            # Use a hash of the text for consistent file naming
+            text_hash = hashlib.md5(text.encode()).hexdigest()
+            audio_filename = f"deepgram_tts_{text_hash}.wav"
+            
+            # Create static audio directory if it doesn't exist
+            static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'audio')
+            os.makedirs(static_dir, exist_ok=True)
+            audio_path = os.path.join(static_dir, audio_filename)
+            
+            # Check if file already exists to avoid regenerating
+            if os.path.exists(audio_path):
+                logger.info(f"Using existing audio file: {audio_filename}")
+                base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
+                audio_url = f"{base_url}/static/audio/{audio_filename}"
+                return audio_url
+            
+            # Generate audio only if file doesn't exist
             audio_data = self.text_to_speech(text)
             
             if audio_data:
-                # Store audio data in app context instead of file system
-                audio_id = str(uuid.uuid4())
+                # Save audio file to disk for persistent access
+                with open(audio_path, 'wb') as f:
+                    f.write(audio_data)
                 
-                # Store in Flask app context for serving
-                if not hasattr(current_app, '_deepgram_audio_cache'):
-                    current_app._deepgram_audio_cache = {}
-                
-                current_app._deepgram_audio_cache[audio_id] = audio_data
-                logger.info(f"Stored Deepgram audio in memory: {audio_id} ({len(audio_data)} bytes)")
+                logger.info(f"Stored NEW Deepgram audio to file: {audio_filename} ({len(audio_data)} bytes)")
                 
                 # Return URL that Twilio can access
                 base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
-                audio_url = f"{base_url}/api/audio/{audio_id}"
+                audio_url = f"{base_url}/static/audio/{audio_filename}"
                 logger.info(f"Deepgram TTS URL: {audio_url}")
                 return audio_url
             
@@ -369,22 +383,30 @@ class DeepgramService:
                     logger.warning(f"Error checking app cache: {app_error}")
             
             if cached_item:
-                audio_data = cached_item['audio_data']
-                
-                # Store in Flask app context for serving
-                import uuid
+                # Check if file already exists on disk
+                import os
                 from flask import current_app
                 
-                audio_id = str(uuid.uuid4())
-                if not hasattr(current_app, '_deepgram_audio_cache'):
-                    current_app._deepgram_audio_cache = {}
+                audio_filename = f"deepgram_tts_{text_hash}.wav"
+                static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'audio')
+                audio_path = os.path.join(static_dir, audio_filename)
                 
-                current_app._deepgram_audio_cache[audio_id] = audio_data
+                # If file doesn't exist, create it from cached data
+                if not os.path.exists(audio_path):
+                    try:
+                        os.makedirs(static_dir, exist_ok=True)
+                        audio_data = cached_item['audio_data']
+                        with open(audio_path, 'wb') as f:
+                            f.write(audio_data)
+                        logger.info(f"Created cached audio file: {audio_filename}")
+                    except Exception as file_error:
+                        logger.error(f"Error creating cached audio file: {file_error}")
+                        return None
                 
                 base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
-                audio_url = f"{base_url}/api/audio/{audio_id}"
+                audio_url = f"{base_url}/static/audio/{audio_filename}"
                 
-                logger.info(f"Using INSTANT pre-cached audio for: {text[:30]}...")
+                logger.info(f"Using INSTANT pre-cached file for: {text[:30]}...")
                 return audio_url
                 
         except Exception as e:
