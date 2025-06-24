@@ -170,9 +170,10 @@ class DeepgramService:
                     
                     return transcript_data if transcript_data else self._get_mock_data()
                 
-            except Exception as deepgram_error:
-                logger.error(f"Deepgram transcription failed: {deepgram_error}")
-                return self._get_mock_data()
+            except Exception as e:
+                logger.error(f"Error in Deepgram transcription: {e}")
+                # Return nothing on failure
+                return None
             
         except Exception as e:
             logger.error(f"Error transcribing file {audio_file_url}: {e}")
