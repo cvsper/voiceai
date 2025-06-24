@@ -27,7 +27,7 @@ class TwilioService:
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
             # Try to use Deepgram Aura 2 - Amalthea voice for greeting
-            greeting_text = "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram Aura Amalthea voice technology. How can I help you today?"
+            greeting_text = "Hello! Thank you for calling palm beach maids, how can i help you today?"
             
             try:
                 from services.deepgram_service import DeepgramService
@@ -46,16 +46,7 @@ class TwilioService:
                 response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
             
             # Add listening prompt
-            prompt_text = "I'm listening. Please tell me how I can help you today."
-            try:
-                prompt_url = deepgram_service.text_to_speech_url(prompt_text)
-                if prompt_url:
-                    response.play(prompt_url)
-                else:
-                    response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
-            except Exception as e:
-                logger.error(f"Deepgram prompt error: {e}")
-                response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
+           
             
             # Set up continuous conversation with Deepgram-only transcription
             response.record(
