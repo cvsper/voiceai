@@ -287,6 +287,20 @@ class DeepgramService:
         try:
             if not self.deepgram:
                 return
+            
+            # Check if we already have a global cache
+            try:
+                from flask import current_app
+                if hasattr(current_app, '_deepgram_common_cache') and len(current_app._deepgram_common_cache) > 0:
+                    logger.info(f"Global audio cache already contains {len(current_app._deepgram_common_cache)} items, skipping pre-generation")
+                    return
+            except Exception as app_check_error:
+                logger.warning(f"Could not check global cache: {app_check_error}")
+                
+            # Skip if already pre-generated in this instance    
+            if len(self._audio_cache) > 0:
+                logger.info(f"Local audio cache already contains {len(self._audio_cache)} items, skipping pre-generation")
+                return
                 
             common_responses = [
                 "I'm processing your request. Please continue.",
@@ -313,6 +327,18 @@ class DeepgramService:
                             'text': response_text,
                             'audio_data': audio_data
                         }
+                        
+                        # Also store in Flask app context for global access
+                        try:
+                            from flask import current_app
+                            if not hasattr(current_app, '_deepgram_common_cache'):
+                                current_app._deepgram_common_cache = {}
+                            current_app._deepgram_common_cache[text_hash] = {
+                                'text': response_text,
+                                'audio_data': audio_data
+                            }
+                        except Exception as app_cache_error:
+                            logger.warning(f"Could not store in app cache: {app_cache_error}")
                         logger.info(f"Pre-generated audio for: {response_text[:30]}...")
                 except Exception as e:
                     logger.warning(f"Failed to pre-generate audio for '{response_text[:30]}...': {e}")
@@ -328,8 +354,21 @@ class DeepgramService:
             import hashlib
             text_hash = hashlib.md5(text.encode()).hexdigest()
             
+            # Check local cache first
+            cached_item = None
             if text_hash in self._audio_cache:
                 cached_item = self._audio_cache[text_hash]
+            else:
+                # Check Flask app context cache
+                try:
+                    from flask import current_app
+                    if hasattr(current_app, '_deepgram_common_cache') and text_hash in current_app._deepgram_common_cache:
+                        cached_item = current_app._deepgram_common_cache[text_hash]
+                        logger.info(f"Found cached audio in app context for: {text[:30]}...")
+                except Exception as app_error:
+                    logger.warning(f"Error checking app cache: {app_error}")
+            
+            if cached_item:
                 audio_data = cached_item['audio_data']
                 
                 # Store in Flask app context for serving
@@ -345,7 +384,7 @@ class DeepgramService:
                 base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
                 audio_url = f"{base_url}/api/audio/{audio_id}"
                 
-                logger.info(f"Using pre-cached audio for: {text[:30]}...")
+                logger.info(f"Using INSTANT pre-cached audio for: {text[:30]}...")
                 return audio_url
                 
         except Exception as e:
