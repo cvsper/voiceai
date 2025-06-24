@@ -434,22 +434,22 @@ def create_app():
                                 logger.error(f"Deepgram TTS error: {deepgram_error}")
                                 response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                             
-                            # Continue recording
-                            response.record(
-                                action=f"{current_app.config['BASE_URL']}/webhooks/recording",
-                                method='POST',
-                                max_length=30,
-                                timeout=10,
-                                transcribe=False,  # Disable Twilio transcription - use Deepgram only
-                                play_beep=False
-                            )
-                            
-                            twiml_response = str(response)
-                            logger.info(f"Deepgram-powered AI response: {twiml_response}")
-                            return twiml_response, 200, {'Content-Type': 'text/xml'}
-                            
-                        else:
-                            logger.warning("Deepgram transcription failed or returned mock data")
+                                # Continue recording
+                                response.record(
+                                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                                    method='POST',
+                                    max_length=30,
+                                    timeout=10,
+                                    transcribe=False,  # Disable Twilio transcription - use Deepgram only
+                                    play_beep=False
+                                )
+                                
+                                twiml_response = str(response)
+                                logger.info(f"Deepgram-powered AI response: {twiml_response}")
+                                return twiml_response, 200, {'Content-Type': 'text/xml'}
+                                
+                            else:
+                                logger.warning("Deepgram transcription failed or returned mock data")
                             
                     except Exception as deepgram_error:
                         logger.error(f"Deepgram transcription failed: {deepgram_error}")
