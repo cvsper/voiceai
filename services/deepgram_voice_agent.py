@@ -9,10 +9,9 @@ from deepgram import (
     DeepgramClientOptions,
     LiveTranscriptionEvents,
     LiveOptions,
-    AgentWebSocketEvents,
-    AgentKeepAlive,
 )
-from deepgram.clients.agent.v1.websocket.options import SettingsOptions
+from deepgram.clients.live.v1.client import AsyncLiveClient
+from deepgram.clients.live.v1.options import LiveOptions as AgentLiveOptions
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +30,20 @@ class DeepgramVoiceAgent:
         """Handle the bidirectional stream between Twilio and Deepgram."""
         self.twilio_ws = twilio_websocket
         try:
-            self.dg_connection = self.deepgram.agent.websocket.v("1")
-
+            self.dg_connection: AsyncLiveClient = self.deepgram.listen.asynclive.v("1")
+            
             # Set up event listeners
-            self.dg_connection.on(AgentWebSocketEvents.Welcome, self.on_welcome)
-            self.dg_connection.on(AgentWebSocketEvents.AgentAudioDone, self.on_agent_audio_done)
-            self.dg_connection.on(AgentWebSocketEvents.ConversationText, self.on_conversation_text)
-            self.dg_connection.on(AgentWebSocketEvents.Error, self.on_error)
+            self.dg_connection.on(LiveTranscriptionEvents.Open, self.on_welcome)
+            self.dg_connection.on(LiveTranscriptionEvents.Transcript, self.on_conversation_text)
+            self.dg_connection.on(LiveTranscriptionEvents.Error, self.on_error)
 
-            # Configure the agent
-            options = SettingsOptions(
+            # Configure and start the connection
+            options = AgentLiveOptions(
+                model="nova-2-voip",
+                puncutate=True,
+                interim_results=False,
+                endpointing=300,
+                smart_format=True,
                 agent=dict(
                     listen=dict(provider=dict(type="deepgram", model="nova-2")),
                     think=dict(
@@ -49,16 +52,10 @@ class DeepgramVoiceAgent:
                     ),
                     speak=dict(provider=dict(type="deepgram", model="aura-2-thalia-en")),
                     greeting="Hello! Thank you for calling. My name is Thalia, how can I help you today?",
-                ),
-                audio=dict(
-                    input=dict(encoding="mulaw", sample_rate=8000),
-                    output=dict(encoding="mulaw", sample_rate=8000, container="wav"),
-                ),
+                )
             )
 
-            if not self.dg_connection.start(options):
-                logger.error("Failed to start Deepgram connection")
-                return
+            await self.dg_connection.start(options)
 
             # Process incoming Twilio messages
             async for message in self.twilio_ws:
@@ -68,7 +65,7 @@ class DeepgramVoiceAgent:
             logger.error(f"Error in Deepgram Voice Agent handler: {e}", exc_info=True)
         finally:
             if self.dg_connection:
-                self.dg_connection.finish()
+                await self.dg_connection.finish()
             logger.info("Deepgram connection closed.")
 
     async def process_twilio_message(self, message):
@@ -85,10 +82,10 @@ class DeepgramVoiceAgent:
                 # Forward audio from Twilio to Deepgram
                 payload = data["media"]["payload"]
                 audio_data = base64.b64decode(payload)
-                self.dg_connection.send(audio_data)
+                await self.dg_connection.send(audio_data)
             elif event == "stop":
                 logger.info(f"Twilio media stream stopped: {data}")
-                self.dg_connection.finish()
+                await self.dg_connection.finish()
 
         except Exception as e:
             logger.error(f"Error processing Twilio message: {e}", exc_info=True)
