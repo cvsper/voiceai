@@ -707,9 +707,18 @@ def create_app():
                 Call.duration.isnot(None)
             ).scalar() or 0
             
-            # Live calls (calls with status 'in-progress' or 'ringing')
+            # Average call duration yesterday
+            avg_duration_yesterday = db.session.query(db.func.avg(Call.duration)).filter(
+                db.func.date(Call.start_time) == yesterday,
+                Call.duration.isnot(None)
+            ).scalar() or 0
+            
+            # Calculate duration change percentage
+            duration_change = ((avg_duration - avg_duration_yesterday) / max(avg_duration_yesterday, 1)) * 100 if avg_duration_yesterday > 0 else 0
+            
+            # Live calls (calls with status 'in-progress', 'ringing', or 'active')
             live_calls = Call.query.filter(
-                Call.status.in_(['in-progress', 'ringing'])
+                Call.status.in_(['in-progress', 'ringing', 'active', 'ongoing'])
             ).count()
             
             # Calculate rates
@@ -744,7 +753,7 @@ def create_app():
                     },
                     'avg_call_duration': {
                         'value': f"{int(avg_duration // 60)}:{int(avg_duration % 60):02d}" if avg_duration else "0:00",
-                        'change': 0  # Would need historical data to calculate
+                        'change': round(duration_change, 1)
                     },
                     'live_calls': {
                         'value': live_calls

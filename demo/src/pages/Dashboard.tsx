@@ -2,12 +2,25 @@ import React from 'react';
 import { PhoneCallIcon, CalendarIcon, ClockIcon, ActivityIcon, ArrowUpIcon, ArrowDownIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
 import MetricCard from '../components/MetricCard';
 import RecentCallItem from '../components/RecentCallItem';
-import { useDashboardMetrics, useRecentCalls, useSystemStatus } from '../hooks/useApi';
+import { useDashboardMetrics, useRecentCalls, useSystemStatus, useRealTimeUpdates } from '../hooks/useApi';
+import apiService from '../services/api';
 
 const Dashboard: React.FC = () => {
-  const { data: metricsData, loading: metricsLoading, error: metricsError } = useDashboardMetrics();
-  const { data: recentCallsData, loading: callsLoading, error: callsError } = useRecentCalls(5);
-  const { data: systemStatusData, loading: statusLoading, error: statusError } = useSystemStatus();
+  const { data: metricsData, loading: metricsLoading, error: metricsError } = useRealTimeUpdates(
+    () => apiService.getDashboardMetrics(),
+    10000, // Update every 10 seconds
+    true
+  );
+  const { data: recentCallsData, loading: callsLoading, error: callsError } = useRealTimeUpdates(
+    () => apiService.getRecentCalls(5),
+    15000, // Update every 15 seconds
+    true
+  );
+  const { data: systemStatusData, loading: statusLoading, error: statusError } = useRealTimeUpdates(
+    () => apiService.getSystemStatus(),
+    30000, // Update every 30 seconds
+    true
+  );
 
   // Transform API data to component format
   const metrics = metricsData ? [
