@@ -182,9 +182,9 @@ class DeepgramService:
     def _get_mock_data(self):
         """Return mock transcription data"""
         return [{
-            'text': 'This is a mock transcription of the audio file. The actual Deepgram integration will replace this when properly configured.',
+            'text': '',
             'start': 0,
-            'end': 30,
+            'end': 0,
             'speaker': 0,
             'confidence': 0.85
         }]
