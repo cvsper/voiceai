@@ -375,7 +375,7 @@ def create_app():
                     action=f"{current_app.config['BASE_URL']}/webhooks/recording",
                     method='POST',
                     max_length=30,
-                    timeout=10,
+                    timeout=2,
                     transcribe=True,
                     transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
                     play_beep=False
