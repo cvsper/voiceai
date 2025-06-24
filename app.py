@@ -97,7 +97,7 @@ def create_app():
     db.init_app(app)
     
     # Initialize database tables - defer to first request since Quart context is different
-    @app.before_first_request
+    @app.before_request
     async def create_tables():
         try:
             db.create_all()
