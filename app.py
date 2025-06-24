@@ -189,44 +189,17 @@ def create_app():
                     from twilio.twiml.voice_response import VoiceResponse
                     response = VoiceResponse()
                     
-                    # Use Deepgram voice for AI responses
-                    try:
-                        if current_app.config.get('DEEPGRAM_API_KEY'):
-                            deepgram_service = get_deepgram_service()
-                            
-                            # Generate Deepgram TTS
-                            audio_data = deepgram_service.text_to_speech(ai_response_text)
-                            
-                            if audio_data:
-                                # Store in cache
-                                if not hasattr(current_app, '_deepgram_audio_cache'):
-                                    current_app._deepgram_audio_cache = {}
-                                
-                                import uuid
-                                audio_id = str(uuid.uuid4())
-                                current_app._deepgram_audio_cache[audio_id] = audio_data
-                                
-                                # Play Deepgram audio
-                                audio_url = f"{current_app.config['BASE_URL']}/api/audio/{audio_id}"
-                                response.play(audio_url)
-                                logger.info(f"Playing Deepgram AI response: {ai_response_text[:50]}...")
-                            else:
-                                raise Exception("Deepgram TTS failed")
-                        else:
-                            raise Exception("Deepgram not configured")
-                            
-                    except Exception as e:
-                        logger.warning(f"Deepgram TTS failed, using Twilio: {e}")
-                        # Fallback to Twilio voice
-                        response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
-                        logger.info(f"Using Twilio voice for AI response: {ai_response_text[:50]}...")
+                    # Use reliable Twilio voice for AI responses (Deepgram greeting works, but responses are having issues)
+                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                    logger.info(f"AI responding with Twilio voice: {ai_response_text[:50]}...")
                     
                     
-                    # Continue recording for more conversation
+                    # Continue recording for more conversation with shorter timeout
                     response.record(
                         action=f"{current_app.config['BASE_URL']}/webhooks/recording",
                         method='POST',
-                        max_length=300,
+                        max_length=30,  # Shorter recordings
+                        timeout=10,     # 10 second timeout
                         transcribe=True,
                         transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
                         play_beep=False
