@@ -1,6 +1,7 @@
 Flask-SQLAlchemy==3.0.5
 Flask-CORS==4.0.0
 Quart==0.19.4
+quart-cors==0.8.0
 Hypercorn==0.16.0
 twilio==8.5.0
 deepgram-sdk==4.3.1
