@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, session, send_from_directory, send_file, current_app, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
+from flask_sock import Sock
 from models import db, Call, Transcript, Interaction, Appointment, CRMWebhook
 from config import Config
 from services.twilio_service import TwilioService
@@ -9,6 +10,7 @@ from services.openai_service import OpenAIService
 from services.elevenlabs_service import ElevenLabsService
 from services.calendar_service import CalendarService
 from services.crm_service import CRMService
+from services.deepgram_voice_agent import DeepgramVoiceAgent
 from datetime import datetime, timedelta
 import logging
 import asyncio
@@ -32,6 +34,9 @@ def create_app():
     
     # Initialize SocketIO for WebSocket streaming
     socketio = SocketIO(app, cors_allowed_origins="*")
+    
+    # Initialize WebSocket support
+    sock = Sock(app)
     
     # Initialize services with lazy loading
     def get_twilio_service():
@@ -63,6 +68,11 @@ def create_app():
         if not hasattr(app, '_crm_service'):
             app._crm_service = CRMService()
         return app._crm_service
+    
+    def get_deepgram_voice_agent():
+        if not hasattr(app, '_deepgram_voice_agent'):
+            app._deepgram_voice_agent = DeepgramVoiceAgent()
+        return app._deepgram_voice_agent
     
     # Authentication decorator
     def require_auth(f):
@@ -1012,6 +1022,27 @@ def create_app():
             logger.error(f"Error serving recording for call {call_id}: {e}")
             return jsonify({'error': 'Internal server error'}), 500
     
+    # WebSocket Route for Voice Agent
+    @sock.route('/ws/stream')
+    def stream(ws):
+        """Handle the real-time audio stream from Twilio."""
+        logger.info("WebSocket connection established for a new call.")
+        try:
+            # Get the voice agent service
+            agent = get_deepgram_voice_agent()
+            
+            # Start an asyncio event loop and run the agent handler
+            # Note: In a production environment, you might manage the event loop differently
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(agent.handle_twilio_stream(ws))
+            loop.close()
+            
+        except Exception as e:
+            logger.error(f"Error during WebSocket streaming: {e}", exc_info=True)
+        finally:
+            logger.info("WebSocket connection closed.")
+
     return app
 
 # Create app instance for WSGI

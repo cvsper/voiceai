@@ -1,106 +1,122 @@
 import asyncio
-import websockets
+import base64
 import json
 import logging
+import os
 from flask import current_app
-import base64
+from deepgram import (
+    DeepgramClient,
+    DeepgramClientOptions,
+    LiveTranscriptionEvents,
+    LiveOptions,
+    AgentWebSocketEvents,
+    AgentKeepAlive,
+)
+from deepgram.clients.agent.v1.websocket.options import SettingsOptions
 
 logger = logging.getLogger(__name__)
 
 class DeepgramVoiceAgent:
     def __init__(self):
-        self.api_key = None
-        self.agent_id = None
-        self._initialize_agent()
-    
-    def _initialize_agent(self):
+        self.api_key = os.getenv("DEEPGRAM_API_KEY")
+        if not self.api_key:
+            raise ValueError("DEEPGRAM_API_KEY environment variable not set")
+
+        config = DeepgramClientOptions(options={"keepalive": "true"})
+        self.deepgram = DeepgramClient(self.api_key, config)
+        self.dg_connection = None
+        self.twilio_ws = None
+
+    async def handle_twilio_stream(self, twilio_websocket):
+        """Handle the bidirectional stream between Twilio and Deepgram."""
+        self.twilio_ws = twilio_websocket
         try:
-            self.api_key = current_app.config.get('DEEPGRAM_API_KEY')
-            # For voice agents, you'd typically have an agent ID configured
-            self.agent_id = current_app.config.get('DEEPGRAM_AGENT_ID', 'default-agent')
-            
-            if not self.api_key:
-                logger.warning("Deepgram API key not configured for voice agent")
-            else:
-                logger.info("Deepgram Voice Agent initialized")
-        except Exception as e:
-            logger.error(f"Failed to initialize Deepgram Voice Agent: {e}")
-    
-    async def handle_twilio_stream(self, websocket, call_sid):
-        """Handle bidirectional audio streaming between Twilio and Deepgram Voice Agent"""
-        try:
-            if not self.api_key:
-                logger.error("Cannot start voice agent - API key not configured")
+            self.dg_connection = self.deepgram.agent.websocket.v("1")
+
+            # Set up event listeners
+            self.dg_connection.on(AgentWebSocketEvents.Welcome, self.on_welcome)
+            self.dg_connection.on(AgentWebSocketEvents.AgentAudioDone, self.on_agent_audio_done)
+            self.dg_connection.on(AgentWebSocketEvents.ConversationText, self.on_conversation_text)
+            self.dg_connection.on(AgentWebSocketEvents.AgentErrors, self.on_agent_errors)
+
+            # Configure the agent
+            options = SettingsOptions(
+                agent=dict(
+                    listen=dict(provider=dict(type="deepgram", model="nova-2")),
+                    think=dict(
+                        provider=dict(type="open_ai", model="gpt-4o-mini"),
+                        prompt="You are a friendly and helpful AI assistant named Thalia. Your goal is to assist callers with their needs efficiently and courteously.",
+                    ),
+                    speak=dict(provider=dict(type="deepgram", model="aura-2-thalia-en")),
+                    greeting="Hello! Thank you for calling. My name is Thalia, how can I help you today?",
+                ),
+                audio=dict(
+                    input=dict(encoding="mulaw", sample_rate=8000),
+                    output=dict(encoding="mulaw", sample_rate=8000, container="wav"),
+                ),
+            )
+
+            if not self.dg_connection.start(options):
+                logger.error("Failed to start Deepgram connection")
                 return
-            
-            # Connect to Deepgram Voice Agent
-            deepgram_url = f"wss://agent.deepgram.com/agent/{self.agent_id}/stream"
-            headers = {"Authorization": f"Token {self.api_key}"}
-            
-            async with websockets.connect(deepgram_url, extra_headers=headers) as deepgram_ws:
-                logger.info(f"Connected to Deepgram Voice Agent for call {call_sid}")
-                
-                # Send initial configuration
-                config = {
-                    "type": "Configure",
-                    "audio": {
-                        "encoding": "mulaw",
-                        "sample_rate": 8000,
-                        "channels": 1
-                    },
-                    "agent": {
-                        "personality": "helpful AI assistant",
-                        "instructions": "You are a helpful AI assistant for a business. Greet callers warmly and ask how you can help them today. If they want to book an appointment, collect their name, phone number, and preferred date/time.",
-                        "voice": "nova"  # Deepgram's natural voice
-                    }
-                }
-                await deepgram_ws.send(json.dumps(config))
-                
-                # Handle bidirectional streaming
-                async def twilio_to_deepgram():
-                    try:
-                        async for message in websocket:
-                            data = json.loads(message)
-                            if data.get('event') == 'media':
-                                # Forward audio from Twilio to Deepgram
-                                audio_data = data['media']['payload']
-                                deepgram_message = {
-                                    "type": "Audio",
-                                    "audio": audio_data
-                                }
-                                await deepgram_ws.send(json.dumps(deepgram_message))
-                    except Exception as e:
-                        logger.error(f"Error forwarding Twilio to Deepgram: {e}")
-                
-                async def deepgram_to_twilio():
-                    try:
-                        async for message in deepgram_ws:
-                            data = json.loads(message)
-                            if data.get('type') == 'Audio':
-                                # Forward generated speech from Deepgram to Twilio
-                                twilio_message = {
-                                    "event": "media",
-                                    "streamSid": call_sid,
-                                    "media": {
-                                        "payload": data['audio']
-                                    }
-                                }
-                                await websocket.send(json.dumps(twilio_message))
-                            elif data.get('type') == 'Transcript':
-                                # Log conversation for debugging
-                                logger.info(f"Agent transcript: {data.get('text', '')}")
-                    except Exception as e:
-                        logger.error(f"Error forwarding Deepgram to Twilio: {e}")
-                
-                # Run both directions concurrently
-                await asyncio.gather(
-                    twilio_to_deepgram(),
-                    deepgram_to_twilio()
-                )
-                
+
+            # Process incoming Twilio messages
+            async for message in self.twilio_ws:
+                await self.process_twilio_message(message)
+
         except Exception as e:
-            logger.error(f"Error in Deepgram Voice Agent for call {call_sid}: {e}")
-    
-    def get_agent_greeting(self):
-        """Get a dynamic greeting message"""
-        return "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram. How can I help you today?"
+            logger.error(f"Error in Deepgram Voice Agent handler: {e}", exc_info=True)
+        finally:
+            if self.dg_connection:
+                self.dg_connection.finish()
+            logger.info("Deepgram connection closed.")
+
+    async def process_twilio_message(self, message):
+        """Process a single message from the Twilio WebSocket."""
+        try:
+            data = json.loads(message)
+            event = data.get("event")
+
+            if event == "connected":
+                logger.info(f"Twilio connected: {data}")
+            elif event == "start":
+                logger.info(f"Twilio media stream started: {data}")
+            elif event == "media":
+                # Forward audio from Twilio to Deepgram
+                payload = data["media"]["payload"]
+                audio_data = base64.b64decode(payload)
+                self.dg_connection.send(audio_data)
+            elif event == "stop":
+                logger.info(f"Twilio media stream stopped: {data}")
+                self.dg_connection.finish()
+
+        except Exception as e:
+            logger.error(f"Error processing Twilio message: {e}", exc_info=True)
+
+    # Deepgram Event Handlers
+    async def on_welcome(self, **kwargs):
+        logger.info("Deepgram Agent Welcome")
+
+    async def on_agent_audio_done(self, **kwargs):
+        logger.info("Deepgram Agent finished speaking.")
+
+    async def on_conversation_text(self, data, **kwargs):
+        # Forward agent's speech back to Twilio
+        audio_data = data.get("audio")
+        if audio_data:
+            # Twilio expects mulaw audio to be base64 encoded
+            encoded_audio = base64.b64encode(audio_data).decode('utf-8')
+
+            twilio_message = {
+                "event": "media",
+                "media": {
+                    "payload": encoded_audio
+                }
+            }
+            # The streamSid is not strictly needed for outbound media
+            # but can be helpful for logging. We'll omit it for simplicity.
+            await self.twilio_ws.send(json.dumps(twilio_message))
+
+
+    async def on_agent_errors(self, data, **kwargs):
+        logger.error(f"Deepgram Agent Error: {data}")

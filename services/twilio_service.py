@@ -21,49 +21,31 @@ class TwilioService:
             raise
     
     def handle_incoming_call(self, call_sid, from_number, to_number):
-        """Handle incoming call with Deepgram Aura 2 - Amalthea voice"""
+        """Handle incoming call by streaming to Deepgram Voice Agent."""
         try:
             response = VoiceResponse()
-            base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
-            
-            # Try to use Deepgram Aura 2 - Amalthea voice for greeting
-            greeting_text = "Hello! Thank you for calling Palm Beach Maids, how can i help you today?"
-            
-            try:
-                from services.deepgram_service import DeepgramService
-                deepgram_service = DeepgramService()
-                greeting_url = deepgram_service.text_to_speech_url(greeting_text)
-                
-                if greeting_url:
-                    logger.info(f"Using Deepgram Aura Amalthea voice greeting for call {call_sid}")
-                    response.play(greeting_url)
-                else:
-                    logger.warning("Deepgram greeting failed, using Twilio voice")
-                    response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
-            except Exception as deepgram_error:
-                logger.error(f"Deepgram greeting error: {deepgram_error}")
-                logger.info("Falling back to Twilio voice greeting")
-                response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
-            
-            # Add listening prompt
-           
-            
-            # Set up continuous conversation with Deepgram-only transcription
-            response.record(
-                action=f"{base_url}/webhooks/recording",
-                method='POST',
-                max_length=30,  # Shorter recordings for more responsive conversation
-                transcribe=False,  # Disable Twilio transcription - use Deepgram only
-                play_beep=False,
-                timeout=1  # Wait 1 seconds for speech
-            )
-            
+            base_url = current_app.config.get('BASE_URL', '')
+
+            # The base_url for websockets needs to be in wss:// format
+            websocket_url = base_url.replace('http://', 'ws://').replace('https://', 'wss://')
+            stream_url = f"{websocket_url}/ws/stream"
+
+            logger.info(f"Connecting call {call_sid} to WebSocket stream: {stream_url}")
+
+            # Use <Connect> and <Stream> to open a bidirectional audio stream
+            connect = response.connect()
+            connect.stream(url=stream_url)
+
+            # A <Say> after <Connect> can be used for holding messages if connection fails
+            response.say("Connecting to our AI assistant. Please wait a moment.")
+
             return str(response)
-            
+
         except Exception as e:
             logger.error(f"Error handling incoming call {call_sid}: {e}")
             response = VoiceResponse()
-            response.say("Hello! Thank you for calling.", voice='Polly.Joanna')
+            response.say("We're sorry, we couldn't connect you at this time. Please try again later.")
+            response.hangup()
             return str(response)
     
     def handle_conference_call(self, call_sid, participants):
