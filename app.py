@@ -96,8 +96,9 @@ def create_app():
     # Initialize database with app using standard Flask-SQLAlchemy
     db.init_app(app)
     
-    # Initialize database tables
-    with app.app_context():
+    # Initialize database tables - defer to first request since Quart context is different
+    @app.before_first_request
+    async def create_tables():
         try:
             db.create_all()
             logger.info("Database tables created successfully")
