@@ -24,6 +24,7 @@ class TwilioService:
     def handle_incoming_call(self, call_sid, from_number, to_number):
         """Handle incoming call by streaming to Deepgram Voice Agent."""
         try:
+            self._ensure_client()  # Ensure client is initialized within app context
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', '')
 
