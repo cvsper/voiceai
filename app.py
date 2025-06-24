@@ -141,32 +141,33 @@ def create_app():
             
             logger.info(f"Voice webhook: {call_sid} - {call_status}")
             
-            # Create or update call record
-            call = Call.query.filter_by(call_sid=call_sid).first()
-            if not call:
-                call = Call(
-                    call_sid=call_sid,
-                    from_number=from_number,
-                    to_number=to_number,
-                    status=call_status,
-                    call_type='inbound'
-                )
-                db.session.add(call)
-                db.session.commit()
-                
-                # Trigger CRM webhook for call started
-                get_crm_service().trigger_call_started({
-                    'call_id': call.id,
-                    'call_sid': call_sid,
-                    'from_number': from_number,
-                    'to_number': to_number,
-                    'call_type': 'inbound'
-                })
-            else:
-                call.status = call_status
-                if call_status in ['completed', 'busy', 'no-answer', 'failed']:
-                    call.end_time = datetime.utcnow()
-                db.session.commit()
+            # Create or update call record within app context
+            async with app.app_context():
+                call = Call.query.filter_by(call_sid=call_sid).first()
+                if not call:
+                    call = Call(
+                        call_sid=call_sid,
+                        from_number=from_number,
+                        to_number=to_number,
+                        status=call_status,
+                        call_type='inbound'
+                    )
+                    db.session.add(call)
+                    db.session.commit()
+                    
+                    # Trigger CRM webhook for call started
+                    get_crm_service().trigger_call_started({
+                        'call_id': call.id,
+                        'call_sid': call_sid,
+                        'from_number': from_number,
+                        'to_number': to_number,
+                        'call_type': 'inbound'
+                    })
+                else:
+                    call.status = call_status
+                    if call_status in ['completed', 'busy', 'no-answer', 'failed']:
+                        call.end_time = datetime.utcnow()
+                    db.session.commit()
             
             # Generate TwiML response
             if call_status == 'ringing':
@@ -356,33 +357,34 @@ def create_app():
             
             logger.info(f"Recording webhook for {call_sid}: {recording_url}")
             
-            # Update call with recording info first
-            call = Call.query.filter_by(call_sid=call_sid).first()
-            if call:
-                call.recording_url = recording_url
-                call.duration = int(recording_duration) if recording_duration else None
-                db.session.commit()
-                
-                # Process with Deepgram transcription immediately
-                if recording_url:
-                    try:
-                        logger.info(f"Starting Deepgram transcription for {recording_url}")
-                        transcript_data = get_deepgram_service().transcribe_file(recording_url)
-                        
-                        if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
-                            # Get the transcription text
-                            transcription_text = ' '.join([item['text'] for item in transcript_data])
-                            logger.info(f"Deepgram transcription: '{transcription_text}'")
+            # Update call with recording info first within app context
+            async with app.app_context():
+                call = Call.query.filter_by(call_sid=call_sid).first()
+                if call:
+                    call.recording_url = recording_url
+                    call.duration = int(recording_duration) if recording_duration else None
+                    db.session.commit()
+                    
+                    # Process with Deepgram transcription immediately
+                    if recording_url:
+                        try:
+                            logger.info(f"Starting Deepgram transcription for {recording_url}")
+                            transcript_data = get_deepgram_service().transcribe_file(recording_url)
                             
-                            # Save transcript
-                            transcript = Transcript(
-                                call_id=call.id,
-                                speaker='caller',
-                                text=transcription_text,
-                                confidence=transcript_data[0].get('confidence', 0.9),
-                                is_final=True
-                            )
-                            db.session.add(transcript)
+                            if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
+                                # Get the transcription text
+                                transcription_text = ' '.join([item['text'] for item in transcript_data])
+                                logger.info(f"Deepgram transcription: '{transcription_text}'")
+                                
+                                # Save transcript
+                                transcript = Transcript(
+                                    call_id=call.id,
+                                    speaker='caller',
+                                    text=transcription_text,
+                                    confidence=transcript_data[0].get('confidence', 0.9),
+                                    is_final=True
+                                )
+                                db.session.add(transcript)
                             
                             # Generate intelligent AI response using OpenAI
                             try:
