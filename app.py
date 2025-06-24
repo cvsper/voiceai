@@ -93,14 +93,18 @@ def create_app():
             return f(*args, **kwargs)
         return decorated_function
     
-    # Initialize database with app
+    # Initialize database with app - but override teardown to be Quart-compatible
     db.init_app(app)
     
-    # Create tables
-    @app.before_serving
-    async def startup():
-        async with app.app_context():
-            db.create_all()
+    # Disable automatic teardown and commit behaviors
+    app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = False
+    
+    # Override Flask-SQLAlchemy's teardown to prevent async context issues
+    db._teardown_session = lambda exc: None
+    
+    # Create tables synchronously during app creation
+    with app.app_context():
+        db.create_all()
     
     # WEBHOOK ENDPOINTS
     
