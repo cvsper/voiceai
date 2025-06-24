@@ -296,7 +296,7 @@ def create_app():
     
     @app.route('/webhooks/recording', methods=['POST'])
     def handle_recording_webhook():
-        """Handle Twilio recording webhook and redirect to AI response"""
+        """Handle Twilio recording webhook and process with Deepgram only"""
         try:
             call_sid = request.form.get('CallSid')
             recording_url = request.form.get('RecordingUrl')
@@ -310,17 +310,111 @@ def create_app():
                 call.recording_url = recording_url
                 call.duration = int(recording_duration) if recording_duration else None
                 db.session.commit()
+                
+                # Process with Deepgram transcription immediately
+                if recording_url:
+                    try:
+                        logger.info(f"Starting Deepgram transcription for {recording_url}")
+                        transcript_data = get_deepgram_service().transcribe_file(recording_url)
+                        
+                        if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
+                            # Get the transcription text
+                            transcription_text = ' '.join([item['text'] for item in transcript_data])
+                            logger.info(f"Deepgram transcription: '{transcription_text}'")
+                            
+                            # Save transcript
+                            transcript = Transcript(
+                                call_id=call.id,
+                                speaker='caller',
+                                text=transcription_text,
+                                confidence=transcript_data[0].get('confidence', 0.9),
+                                is_final=True
+                            )
+                            db.session.add(transcript)
+                            
+                            # Generate intelligent AI response using OpenAI
+                            try:
+                                ai_response_text = get_openai_service().generate_quick_response(transcription_text)
+                                
+                                # Simple intent detection
+                                if "appointment" in transcription_text.lower() or "schedule" in transcription_text.lower():
+                                    intent = 'booking_appointment'
+                                elif "cancel" in transcription_text.lower():
+                                    intent = 'cancel_appointment'
+                                elif "cleaning" in transcription_text.lower():
+                                    intent = 'service_info'
+                                else:
+                                    intent = 'general_inquiry'
+                                
+                                logger.info(f"OpenAI response: {ai_response_text[:50]}...")
+                                
+                            except Exception as openai_error:
+                                logger.warning(f"OpenAI failed: {openai_error}")
+                                ai_response_text = "I understand. How can I help you with that?"
+                                intent = 'general_inquiry'
+                            
+                            # Save interaction
+                            interaction = Interaction(
+                                call_id=call.id,
+                                intent=intent,
+                                confidence=0.9,
+                                user_input=transcription_text,
+                                ai_response=ai_response_text
+                            )
+                            db.session.add(interaction)
+                            db.session.commit()
+                            
+                            # Generate TwiML response with Deepgram voice
+                            from twilio.twiml.voice_response import VoiceResponse
+                            response = VoiceResponse()
+                            
+                            # Try Deepgram voice first
+                            try:
+                                deepgram_audio_url = get_deepgram_service().text_to_speech_url(ai_response_text)
+                                if deepgram_audio_url:
+                                    logger.info(f"Using Deepgram Aura Amalthea voice: {deepgram_audio_url}")
+                                    response.play(deepgram_audio_url)
+                                else:
+                                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                            except Exception as deepgram_error:
+                                logger.error(f"Deepgram TTS error: {deepgram_error}")
+                                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                            
+                            # Continue recording
+                            response.record(
+                                action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                                method='POST',
+                                max_length=30,
+                                timeout=10,
+                                transcribe=False,  # Disable Twilio transcription - use Deepgram only
+                                play_beep=False
+                            )
+                            
+                            twiml_response = str(response)
+                            logger.info(f"Deepgram-powered AI response: {twiml_response}")
+                            return twiml_response, 200, {'Content-Type': 'text/xml'}
+                            
+                        else:
+                            logger.warning("Deepgram transcription failed or returned mock data")
+                            
+                    except Exception as deepgram_error:
+                        logger.error(f"Deepgram transcription failed: {deepgram_error}")
+                        
+                # Fallback if transcription failed
+                from twilio.twiml.voice_response import VoiceResponse
+                response = VoiceResponse()
+                response.say("I'm sorry, I didn't catch that. Could you please repeat?", voice='Polly.Joanna-Neural', language='en-US')
+                response.record(
+                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                    method='POST',
+                    max_length=30,
+                    timeout=10,
+                    transcribe=False,  # Disable Twilio transcription - use Deepgram only
+                    play_beep=False
+                )
+                return str(response), 200, {'Content-Type': 'text/xml'}
             
-            # Use Redirect to ensure AI response gets played
-            from twilio.twiml.voice_response import VoiceResponse
-            response = VoiceResponse()
-            
-            # Redirect to AI response endpoint with a small delay to ensure transcription completes
-            redirect_url = f"{current_app.config['BASE_URL']}/webhooks/ai-response?CallSid={call_sid}"
-            response.redirect(redirect_url, method='POST')
-            
-            logger.info(f"Recording webhook redirecting to: {redirect_url}")
-            return str(response), 200, {'Content-Type': 'text/xml'}
+            return '', 200
             
         except Exception as e:
             logger.error(f"Error in recording webhook: {e}")
@@ -376,8 +470,7 @@ def create_app():
                     method='POST',
                     max_length=30,
                     timeout=10,
-                    transcribe=True,
-                    transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                    transcribe=False,  # Disable Twilio transcription - use Deepgram only
                     play_beep=False
                 )
             else:
@@ -401,8 +494,7 @@ def create_app():
                     method='POST',
                     max_length=30,
                     timeout=10,
-                    transcribe=True,
-                    transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
+                    transcribe=False,  # Disable Twilio transcription - use Deepgram only
                     play_beep=False
                 )
             

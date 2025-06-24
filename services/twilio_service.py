@@ -57,13 +57,12 @@ class TwilioService:
                 logger.error(f"Deepgram prompt error: {e}")
                 response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
             
-            # Set up continuous conversation with enhanced webhooks
+            # Set up continuous conversation with Deepgram-only transcription
             response.record(
                 action=f"{base_url}/webhooks/recording",
                 method='POST',
                 max_length=30,  # Shorter recordings for more responsive conversation
-                transcribe=True,
-                transcribe_callback=f"{base_url}/webhooks/transcribe",
+                transcribe=False,  # Disable Twilio transcription - use Deepgram only
                 play_beep=False,
                 timeout=10  # Wait 10 seconds for speech
             )
