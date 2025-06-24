@@ -55,7 +55,7 @@ class TwilioService:
                 max_length=30,  # Shorter recordings for more responsive conversation
                 transcribe=False,  # Disable Twilio transcription - use Deepgram only
                 play_beep=False,
-                timeout=5  # Wait 10 seconds for speech
+                timeout=1  # Wait 1 seconds for speech
             )
             
             return str(response)
