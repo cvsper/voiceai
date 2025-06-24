@@ -141,8 +141,9 @@ def create_app():
             
             logger.info(f"Voice webhook: {call_sid} - {call_status}")
             
-            # Create or update call record within app context
+            # Handle all operations within a single app context
             async with app.app_context():
+                # Create or update call record
                 call = Call.query.filter_by(call_sid=call_sid).first()
                 if not call:
                     call = Call(
@@ -168,9 +169,8 @@ def create_app():
                     if call_status in ['completed', 'busy', 'no-answer', 'failed']:
                         call.end_time = datetime.utcnow()
                     db.session.commit()
-            
-            # Generate TwiML response within app context
-            async with app.app_context():
+                
+                # Generate TwiML response
                 if call_status == 'ringing':
                     try:
                         twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
