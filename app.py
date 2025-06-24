@@ -333,21 +333,10 @@ def create_app():
             call_sid = request.form.get('CallSid') or request.args.get('CallSid')
             logger.info(f"AI response webhook for {call_sid}")
             
-            # Wait a moment for transcription to complete if needed
-            import time
-            max_wait = 10  # seconds
-            wait_interval = 0.5  # seconds
-            waited = 0
-            
-            # Check for AI response with retry logic
             ai_response_text = None
-            while waited < max_wait:
-                if hasattr(current_app, '_ai_responses') and call_sid in current_app._ai_responses:
-                    ai_response_text = current_app._ai_responses[call_sid]
-                    del current_app._ai_responses[call_sid]  # Remove after use
-                    break
-                time.sleep(wait_interval)
-                waited += wait_interval
+            if hasattr(current_app, '_ai_responses') and call_sid in current_app._ai_responses:
+                ai_response_text = current_app._ai_responses[call_sid]
+                del current_app._ai_responses[call_sid]  # Remove after use
             
             # Generate TwiML response
             from twilio.twiml.voice_response import VoiceResponse
@@ -375,7 +364,7 @@ def create_app():
                     action=f"{current_app.config['BASE_URL']}/webhooks/recording",
                     method='POST',
                     max_length=30,
-                    timeout=2,
+                    timeout=1,
                     transcribe=True,
                     transcribe_callback=f"{current_app.config['BASE_URL']}/webhooks/transcribe",
                     play_beep=False
