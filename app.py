@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, send_from_directory, send_file, current_app
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, current_app, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from models import db, Call, Transcript, Interaction, Appointment, CRMWebhook
@@ -948,6 +948,69 @@ def create_app():
         except Exception as e:
             logger.error(f"Error serving greeting file: {e}")
             return jsonify({'error': 'Greeting file not found'}), 404
+
+    # Proxy endpoint for Twilio recordings
+    @app.route('/api/recording/<int:call_id>')
+    @require_auth
+    def serve_recording(call_id):
+        """Proxy endpoint to serve Twilio recordings with authentication"""
+        try:
+            # Get the call and its recording URL
+            call = Call.query.get_or_404(call_id)
+            
+            if not call.recording_url:
+                return jsonify({'error': 'No recording available for this call'}), 404
+            
+            # Prepare the media URL with .mp3 extension if needed
+            media_url = call.recording_url
+            if not media_url.endswith(('.mp3', '.wav')):
+                media_url = f"{call.recording_url}.mp3"
+            
+            # Set up authentication for Twilio
+            from requests.auth import HTTPBasicAuth
+            import requests
+            
+            twilio_account_sid = current_app.config.get('TWILIO_ACCOUNT_SID')
+            twilio_auth_token = current_app.config.get('TWILIO_AUTH_TOKEN')
+            
+            if not twilio_account_sid or not twilio_auth_token:
+                logger.error("Twilio credentials not configured")
+                return jsonify({'error': 'Recording service unavailable'}), 503
+            
+            # Stream the recording from Twilio
+            try:
+                auth = HTTPBasicAuth(twilio_account_sid, twilio_auth_token)
+                response = requests.get(media_url, auth=auth, stream=True, timeout=30)
+                response.raise_for_status()
+                
+                # Stream the audio content to the client
+                def generate():
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+                
+                # Determine content type
+                content_type = 'audio/mpeg'
+                if media_url.endswith('.wav'):
+                    content_type = 'audio/wav'
+                
+                return Response(
+                    generate(),
+                    mimetype=content_type,
+                    headers={
+                        'Accept-Ranges': 'bytes',
+                        'Cache-Control': 'no-cache',
+                        'Content-Disposition': f'inline; filename="call-{call.call_sid}.mp3"'
+                    }
+                )
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching recording from Twilio: {e}")
+                return jsonify({'error': 'Failed to fetch recording'}), 502
+                
+        except Exception as e:
+            logger.error(f"Error serving recording for call {call_id}: {e}")
+            return jsonify({'error': 'Internal server error'}), 500
     
     return app
 

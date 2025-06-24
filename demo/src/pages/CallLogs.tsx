@@ -77,9 +77,9 @@ const CallLogs: React.FC = () => {
     }
   };
 
-  const handleDownload = (recordingUrl: string, callSid: string) => {
+  const handleDownload = (callId: number, callSid: string) => {
     const link = document.createElement('a');
-    link.href = recordingUrl;
+    link.href = `/api/recording/${callId}`;
     link.download = `call-${callSid}.mp3`;
     link.click();
   };
@@ -214,7 +214,7 @@ const CallLogs: React.FC = () => {
                               <button 
                                 className="rounded-full bg-gray-700 p-1 hover:bg-gray-600" 
                                 title="Download Recording"
-                                onClick={() => handleDownload(call.recording_url, call.call_sid)}
+                                onClick={() => handleDownload(call.id, call.call_sid)}
                               >
                                 <DownloadIcon className="h-4 w-4" />
                               </button>
@@ -251,7 +251,7 @@ const CallLogs: React.FC = () => {
                                   className="w-full h-8"
                                   onEnded={() => setPlayingCallId(null)}
                                 >
-                                  <source src={call.recording_url} type="audio/mpeg" />
+                                  <source src={`/api/recording/${call.id}`} type="audio/mpeg" />
                                   Your browser does not support the audio element.
                                 </audio>
                               </div>
