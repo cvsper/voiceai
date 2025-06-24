@@ -46,16 +46,7 @@ class TwilioService:
                 response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
             
             # Add listening prompt
-            prompt_text = "I'm listening. Please tell me how I can help you today."
-            try:
-                prompt_url = deepgram_service.text_to_speech_url(prompt_text)
-                if prompt_url:
-                    response.play(prompt_url)
-                else:
-                    response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
-            except Exception as e:
-                logger.error(f"Deepgram prompt error: {e}")
-                response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
+            
             
             # Set up continuous conversation with enhanced webhooks
             response.record(

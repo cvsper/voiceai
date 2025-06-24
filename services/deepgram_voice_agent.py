@@ -49,8 +49,8 @@ class DeepgramVoiceAgent:
                         "channels": 1
                     },
                     "agent": {
-                        "personality": "helpful AI assistant",
-                        "instructions": "You are a helpful AI assistant for a business. Greet callers warmly and ask how you can help them today. If they want to book an appointment, collect their name, phone number, and preferred date/time.",
+                        "personality": "friendly assistant",
+                        "instructions": "You are a cheerful personal assistant. Greet callers warmly and ask how you can help them today. If they want to book an appointment, collect their name, phone number, and preferred date/time.",
                         "voice": "nova"  # Deepgram's natural voice
                     }
                 }
@@ -103,4 +103,4 @@ class DeepgramVoiceAgent:
     
     def get_agent_greeting(self):
         """Get a dynamic greeting message"""
-        return "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram. How can I help you today?"
+        return "Hey damian! Is there anything I can do help you? Cheeks maybe?"
