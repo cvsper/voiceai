@@ -37,7 +37,7 @@ class DeepgramVoiceAgent:
             self.dg_connection.on(AgentWebSocketEvents.Welcome, self.on_welcome)
             self.dg_connection.on(AgentWebSocketEvents.AgentAudioDone, self.on_agent_audio_done)
             self.dg_connection.on(AgentWebSocketEvents.ConversationText, self.on_conversation_text)
-            self.dg_connection.on(AgentWebSocketEvents.AgentErrors, self.on_agent_errors)
+            self.dg_connection.on(AgentWebSocketEvents.Error, self.on_error)
 
             # Configure the agent
             options = SettingsOptions(
@@ -117,6 +117,5 @@ class DeepgramVoiceAgent:
             # but can be helpful for logging. We'll omit it for simplicity.
             await self.twilio_ws.send(json.dumps(twilio_message))
 
-
-    async def on_agent_errors(self, data, **kwargs):
+    async def on_error(self, data, **kwargs):
         logger.error(f"Deepgram Agent Error: {data}")
