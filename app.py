@@ -31,16 +31,16 @@ def create_app():
     
     # Manually add static file route after config is loaded
     @app.route('/')
-    def index():
+    async def index():
         import os
         static_dir = os.path.join(os.path.dirname(__file__), 'demo/dist')
-        return send_from_directory(static_dir, 'index.html')
+        return await send_from_directory(static_dir, 'index.html')
     
     @app.route('/<path:filename>')
-    def static_files(filename):
+    async def static_files(filename):
         import os
         static_dir = os.path.join(os.path.dirname(__file__), 'demo/dist')
-        return send_from_directory(static_dir, filename)
+        return await send_from_directory(static_dir, filename)
     
     # Initialize extensions
     app = cors(app, allow_origin=['http://localhost:3000', 'http://localhost:5173'])
