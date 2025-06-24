@@ -23,20 +23,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def create_app():
-    # Create app and immediately set critical config values
-    app = Quart(__name__)
+    # Create app with static files disabled to avoid config issues
+    app = Quart(__name__, static_folder=None, static_url_path=None)
     
-    # Set essential config values before anything else
-    app.config['PROVIDE_AUTOMATIC_OPTIONS'] = True
-    app.config['CORS_HEADERS'] = 'Content-Type'
-    app.config['EXPLAIN_TEMPLATE_LOADING'] = False
-    
-    # Now load the full config
+    # Load config immediately
     app.config.from_object(Config)
     
-    # Set up static files
-    app.static_folder = 'demo/dist'
-    app.static_url_path = ''
+    # Manually add static file route after config is loaded
+    @app.route('/')
+    def index():
+        import os
+        static_dir = os.path.join(os.path.dirname(__file__), 'demo/dist')
+        return send_from_directory(static_dir, 'index.html')
+    
+    @app.route('/<path:filename>')
+    def static_files(filename):
+        import os
+        static_dir = os.path.join(os.path.dirname(__file__), 'demo/dist')
+        return send_from_directory(static_dir, filename)
     
     # Initialize extensions
     app = cors(app, allow_origin=['http://localhost:3000', 'http://localhost:5173'])
