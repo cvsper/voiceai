@@ -23,10 +23,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def create_app():
-    app = Quart(__name__) # Defer static folder setup
-    app.config.from_object(Config) # Load config FIRST
-
-    # Now that config is loaded, set up static files
+    # Create app and immediately set critical config values
+    app = Quart(__name__)
+    
+    # Set essential config values before anything else
+    app.config['PROVIDE_AUTOMATIC_OPTIONS'] = True
+    app.config['CORS_HEADERS'] = 'Content-Type'
+    app.config['EXPLAIN_TEMPLATE_LOADING'] = False
+    
+    # Now load the full config
+    app.config.from_object(Config)
+    
+    # Set up static files
     app.static_folder = 'demo/dist'
     app.static_url_path = ''
     
