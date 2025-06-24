@@ -69,19 +69,26 @@ def create_app():
             app._deepgram_voice_agent = DeepgramVoiceAgent()
         return app._deepgram_voice_agent
     
-    # Authentication decorator
+    # Authentication decorator for Quart
     def require_auth(f):
         @wraps(f)
-        def decorated_function(*args, **kwargs):
+        async def decorated_function(*args, **kwargs):
             auth = request.authorization
             if not auth or auth.username != app.config['AUTH_USERNAME'] or auth.password != app.config['AUTH_PASSWORD']:
                 return jsonify({'error': 'Authentication required'}), 401
+            if asyncio.iscoroutinefunction(f):
+                return await f(*args, **kwargs)
             return f(*args, **kwargs)
         return decorated_function
     
+    # Initialize database with app
+    db.init_app(app)
+    
     # Create tables
-    with app.app_context():
-        db.create_all()
+    @app.before_serving
+    async def startup():
+        async with app.app_context():
+            db.create_all()
     
     # WEBHOOK ENDPOINTS
     
@@ -519,7 +526,7 @@ def create_app():
     
     @app.route('/api/calls', methods=['GET'])
     @require_auth
-    def get_calls():
+    async def get_calls():
         """Get all calls with optional filtering"""
         try:
             page = request.args.get('page', 1, type=int)
@@ -547,7 +554,7 @@ def create_app():
     
     @app.route('/api/calls/<int:call_id>', methods=['GET'])
     @require_auth
-    def get_call_details(call_id):
+    async def get_call_details(call_id):
         """Get detailed call information including transcripts and interactions"""
         try:
             call = Call.query.get_or_404(call_id)
@@ -572,10 +579,10 @@ def create_app():
     
     @app.route('/api/book-appointment', methods=['POST'])
     @require_auth
-    def book_appointment():
+    async def book_appointment():
         """Book an appointment"""
         try:
-            data = request.get_json()
+            data = await request.get_json()
             
             # Validate required fields
             required_fields = ['title', 'start_time', 'end_time']
@@ -612,7 +619,7 @@ def create_app():
     
     @app.route('/api/appointments', methods=['GET'])
     @require_auth
-    def get_appointments():
+    async def get_appointments():
         """Get all appointments"""
         try:
             page = request.args.get('page', 1, type=int)
@@ -635,10 +642,10 @@ def create_app():
     
     @app.route('/api/crm-trigger', methods=['POST'])
     @require_auth
-    def trigger_crm_webhook():
+    async def trigger_crm_webhook():
         """Trigger a custom CRM webhook"""
         try:
-            data = request.get_json()
+            data = await request.get_json()
             
             webhook_url = data.get('webhook_url')
             payload = data.get('payload', {})
@@ -657,7 +664,7 @@ def create_app():
     
     @app.route('/api/available-slots', methods=['GET'])
     @require_auth
-    def get_available_slots():
+    async def get_available_slots():
         """Get available appointment slots for a date"""
         try:
             date_str = request.args.get('date')
@@ -678,7 +685,7 @@ def create_app():
     # Dashboard API endpoints
     @app.route('/api/dashboard/metrics', methods=['GET'])
     @require_auth
-    def get_dashboard_metrics():
+    async def get_dashboard_metrics():
         """Get dashboard metrics"""
         try:
             today = datetime.utcnow().date()
@@ -777,7 +784,7 @@ def create_app():
     
     @app.route('/api/dashboard/recent-calls', methods=['GET'])
     @require_auth
-    def get_recent_calls():
+    async def get_recent_calls():
         """Get recent calls for dashboard"""
         try:
             limit = request.args.get('limit', 10, type=int)
@@ -827,7 +834,7 @@ def create_app():
     
     @app.route('/api/dashboard/system-status', methods=['GET'])
     @require_auth
-    def get_system_status():
+    async def get_system_status():
         """Get system status for dashboard"""
         try:
             # Check if services are configured
@@ -957,7 +964,7 @@ def create_app():
     # Proxy endpoint for Twilio recordings
     @app.route('/api/recording/<int:call_id>')
     @require_auth
-    def serve_recording(call_id):
+    async def serve_recording(call_id):
         """Proxy endpoint to serve Twilio recordings with authentication"""
         try:
             # Get the call and its recording URL
