@@ -451,8 +451,8 @@ def create_app():
                             else:
                                 logger.warning("Deepgram transcription failed or returned mock data")
                             
-                    except Exception as deepgram_error:
-                        logger.error(f"Deepgram transcription failed: {deepgram_error}")
+                        except Exception as deepgram_error:
+                            logger.error(f"Deepgram transcription failed: {deepgram_error}")
                         
                 # Fallback if transcription failed
                 from twilio.twiml.voice_response import VoiceResponse
