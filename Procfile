@@ -1,1 +1,1 @@
-web: gunicorn app:app
+web: cd demo && npm ci --production=false && npm run build && cd .. && gunicorn app:app
