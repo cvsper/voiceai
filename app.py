@@ -169,14 +169,48 @@ def create_app():
                     )
                     db.session.add(transcript)
                     
-                    # Generate immediate AI response without complex analysis to avoid timeouts
-                    ai_response_text = f"I heard you say: {transcription_text}. I'm here to help you with that. What specific assistance do you need?"
+                    # Generate intelligent AI response using OpenAI with timeout protection
+                    try:
+                        # Use OpenAI quick response for faster, more natural conversation
+                        ai_response_text = get_openai_service().generate_quick_response(transcription_text)
+                        
+                        # Simple intent detection based on keywords for database logging
+                        if "appointment" in transcription_text.lower() or "schedule" in transcription_text.lower():
+                            intent = 'booking_appointment'
+                        elif "cancel" in transcription_text.lower():
+                            intent = 'cancel_appointment'
+                        elif "cleaning" in transcription_text.lower():
+                            intent = 'service_info'
+                        elif "help" in transcription_text.lower():
+                            intent = 'general_inquiry'
+                        else:
+                            intent = 'general_inquiry'
+                        
+                        confidence = 0.9
+                        logger.info(f"OpenAI quick response generated for intent: {intent}")
+                        
+                    except Exception as openai_error:
+                        logger.warning(f"OpenAI quick response failed, using fallback: {openai_error}")
+                        # Fallback to simple responses if OpenAI fails
+                        if "appointment" in transcription_text.lower() or "schedule" in transcription_text.lower():
+                            ai_response_text = "I'd be happy to help you schedule an appointment. What type of service are you looking for?"
+                            intent = 'booking_appointment'
+                        elif "cancel" in transcription_text.lower():
+                            ai_response_text = "I can help you with canceling your appointment. Can you provide me with your details?"
+                            intent = 'cancel_appointment'
+                        elif "cleaning" in transcription_text.lower():
+                            ai_response_text = "I understand you need help with cleaning services. Let me assist you with that."
+                            intent = 'service_info'
+                        else:
+                            ai_response_text = "I understand. How can I help you with that?"
+                            intent = 'general_inquiry'
+                        confidence = 0.7
                     
-                    # Save basic interaction (skip complex OpenAI analysis for now)
+                    # Save interaction with proper intent analysis
                     interaction = Interaction(
                         call_id=call.id,
-                        intent='general_inquiry',
-                        confidence=0.9,
+                        intent=intent,
+                        confidence=confidence,
                         user_input=transcription_text,
                         ai_response=ai_response_text
                     )

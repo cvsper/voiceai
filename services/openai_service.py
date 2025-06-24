@@ -37,13 +37,14 @@ class OpenAIService:
             context += "key_entities (list), suggested_response, and action_required."
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-3.5-turbo",  # Faster than GPT-4
                 messages=[
                     {"role": "system", "content": context},
                     {"role": "user", "content": transcript_text}
                 ],
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=200,  # Shorter responses for faster generation
+                timeout=10  # 10 second timeout to prevent worker hangs
             )
             
             # Parse the response
@@ -220,3 +221,42 @@ class OpenAIService:
         except Exception as e:
             logger.error(f"Error generating text: {e}")
             return "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?"
+    
+    def generate_quick_response(self, transcript_text):
+        """Generate a quick conversational response without complex analysis"""
+        try:
+            # Use a simpler, faster prompt for real-time responses
+            prompt = f"""You are a helpful AI assistant. The customer said: "{transcript_text}"
+
+Respond naturally and helpfully in 1-2 sentences. Be conversational and ask a follow-up question if appropriate.
+
+Customer: {transcript_text}
+Assistant:"""
+
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=100,  # Very short responses
+                timeout=8  # Fast timeout
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            logger.info(f"OpenAI quick response generated: {ai_response[:50]}...")
+            return ai_response
+            
+        except Exception as e:
+            logger.error(f"Error in OpenAI quick response: {e}")
+            # Smart fallbacks based on keywords
+            if "appointment" in transcript_text.lower() or "schedule" in transcript_text.lower():
+                return "I'd be happy to help you schedule an appointment. What type of service are you looking for?"
+            elif "cancel" in transcript_text.lower():
+                return "I can help you with that. Can you provide me with more details about what you'd like to cancel?"
+            elif "cleaning" in transcript_text.lower():
+                return "I understand you need help with cleaning services. What specific cleaning assistance do you need?"
+            elif "help" in transcript_text.lower():
+                return "I'm here to help! What can I assist you with today?"
+            else:
+                return "I understand. Could you tell me more about how I can help you?"
