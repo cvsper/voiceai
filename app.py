@@ -23,11 +23,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def create_app():
-    app = Quart(__name__, static_folder='demo/dist', static_url_path='')
-    app.config.from_object(Config)
+    app = Quart(__name__) # Defer static folder setup
+    app.config.from_object(Config) # Load config FIRST
+
+    # Now that config is loaded, set up static files
+    app.static_folder = 'demo/dist'
+    app.static_url_path = ''
     
     # Initialize extensions
-    db.init_app(app)
     app = cors(app, allow_origin=['http://localhost:3000', 'http://localhost:5173'])
     
     # Initialize services with lazy loading
