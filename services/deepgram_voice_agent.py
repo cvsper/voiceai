@@ -7,11 +7,10 @@ from flask import current_app
 from deepgram import (
     DeepgramClient,
     DeepgramClientOptions,
-    LiveTranscriptionEvents,
-    LiveOptions,
+    AgentWebSocketEvents,
 )
-from deepgram.clients.live.v1.client import AsyncLiveClient
-from deepgram.clients.live.v1.options import LiveOptions as AgentLiveOptions
+from deepgram.clients.agent.v1.websocket.async_client import AsyncAgentWebSocketClient
+from deepgram.clients.agent.v1.websocket.options import SettingsOptions
 
 logger = logging.getLogger(__name__)
 
@@ -23,27 +22,25 @@ class DeepgramVoiceAgent:
 
         config = DeepgramClientOptions(options={"keepalive": "true"})
         self.deepgram = DeepgramClient(self.api_key, config)
-        self.dg_connection = None
+        self.dg_connection: AsyncAgentWebSocketClient = None
         self.twilio_ws = None
 
     async def handle_twilio_stream(self, twilio_websocket):
         """Handle the bidirectional stream between Twilio and Deepgram."""
         self.twilio_ws = twilio_websocket
         try:
-            self.dg_connection: AsyncLiveClient = self.deepgram.listen.asynclive.v("1")
+            # The v4 SDK uses this method for agents
+            self.dg_connection = self.deepgram.agent.websocket.v("1")
             
             # Set up event listeners
-            self.dg_connection.on(LiveTranscriptionEvents.Open, self.on_welcome)
-            self.dg_connection.on(LiveTranscriptionEvents.Transcript, self.on_conversation_text)
-            self.dg_connection.on(LiveTranscriptionEvents.Error, self.on_error)
+            self.dg_connection.on(AgentWebSocketEvents.Welcome, self.on_welcome)
+            self.dg_connection.on(AgentWebSocketEvents.AgentAudioDone, self.on_agent_audio_done)
+            self.dg_connection.on(AgentWebSocketEvents.ConversationText, self.on_conversation_text)
+            self.dg_connection.on(AgentWebSocketEvents.Error, self.on_error)
 
-            # Configure and start the connection
-            options = AgentLiveOptions(
-                model="nova-2-voip",
-                puncutate=True,
-                interim_results=False,
-                endpointing=300,
-                smart_format=True,
+            # Configure and start the agent connection
+            options = SettingsOptions(
+                language="en",
                 agent=dict(
                     listen=dict(provider=dict(type="deepgram", model="nova-2")),
                     think=dict(
@@ -51,8 +48,12 @@ class DeepgramVoiceAgent:
                         prompt="You are a friendly and helpful AI assistant named Thalia. Your goal is to assist callers with their needs efficiently and courteously.",
                     ),
                     speak=dict(provider=dict(type="deepgram", model="aura-2-thalia-en")),
-                    greeting="Hello! Thank you for calling. My name is Thalia, how can I help you today?",
-                )
+                ),
+                audio=dict(
+                    input=dict(encoding="mulaw", sample_rate=8000),
+                    output=dict(encoding="mulaw", sample_rate=8000, container="wav"),
+                ),
+                greeting="Hello! Thank you for calling. My name is Thalia, how can I help you today?"
             )
 
             await self.dg_connection.start(options)
