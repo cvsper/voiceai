@@ -130,13 +130,14 @@ def create_app():
     # WEBHOOK ENDPOINTS
     
     @app.route('/webhooks/voice', methods=['POST'])
-    def handle_voice_webhook():
+    async def handle_voice_webhook():
         """Handle incoming Twilio voice webhook"""
         try:
-            call_sid = request.form.get('CallSid')
-            from_number = request.form.get('From')
-            to_number = request.form.get('To')
-            call_status = request.form.get('CallStatus')
+            form_data = await request.form
+            call_sid = form_data.get('CallSid')
+            from_number = form_data.get('From')
+            to_number = form_data.get('To')
+            call_status = form_data.get('CallStatus')
             
             logger.info(f"Voice webhook: {call_sid} - {call_status}")
             
@@ -194,12 +195,13 @@ def create_app():
 </Response>''', 200, {'Content-Type': 'text/xml'}
     
     @app.route('/webhooks/transcribe', methods=['POST'])
-    def handle_transcription_webhook():
+    async def handle_transcription_webhook():
         """Handle Twilio transcription webhook - save response and return empty"""
         try:
-            call_sid = request.form.get('CallSid')
-            transcription_text = request.form.get('TranscriptionText')
-            transcription_status = request.form.get('TranscriptionStatus')
+            form_data = await request.form
+            call_sid = form_data.get('CallSid')
+            transcription_text = form_data.get('TranscriptionText')
+            transcription_status = form_data.get('TranscriptionStatus')
             
             logger.info(f"Transcription webhook for {call_sid}: status={transcription_status}, text_length={len(transcription_text) if transcription_text else 0}")
             logger.info(f"Transcription text: '{transcription_text}'")
@@ -344,12 +346,13 @@ def create_app():
             return '', 500
     
     @app.route('/webhooks/recording', methods=['POST'])
-    def handle_recording_webhook():
+    async def handle_recording_webhook():
         """Handle Twilio recording webhook and process with Deepgram only"""
         try:
-            call_sid = request.form.get('CallSid')
-            recording_url = request.form.get('RecordingUrl')
-            recording_duration = request.form.get('RecordingDuration')
+            form_data = await request.form
+            call_sid = form_data.get('CallSid')
+            recording_url = form_data.get('RecordingUrl')
+            recording_duration = form_data.get('RecordingDuration')
             
             logger.info(f"Recording webhook for {call_sid}: {recording_url}")
             
@@ -470,10 +473,11 @@ def create_app():
             return '', 500
     
     @app.route('/webhooks/ai-response', methods=['POST'])
-    def handle_ai_response():
+    async def handle_ai_response():
         """Deliver AI response after recording and transcription complete"""
         try:
-            call_sid = request.form.get('CallSid') or request.args.get('CallSid')
+            form_data = await request.form
+            call_sid = form_data.get('CallSid') or request.args.get('CallSid')
             logger.info(f"AI response webhook for {call_sid}")
             
             # Wait a moment for transcription to complete if needed
