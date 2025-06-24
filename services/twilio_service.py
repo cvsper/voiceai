@@ -8,17 +8,18 @@ logger = logging.getLogger(__name__)
 class TwilioService:
     def __init__(self):
         self.client = None
-        self._initialize_client()
     
-    def _initialize_client(self):
-        try:
-            self.client = Client(
-                current_app.config['TWILIO_ACCOUNT_SID'],
-                current_app.config['TWILIO_AUTH_TOKEN']
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize Twilio client: {e}")
-            raise
+    def _ensure_client(self):
+        """Ensure Twilio client is initialized when needed"""
+        if self.client is None:
+            try:
+                self.client = Client(
+                    current_app.config['TWILIO_ACCOUNT_SID'],
+                    current_app.config['TWILIO_AUTH_TOKEN']
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Twilio client: {e}")
+                raise
     
     def handle_incoming_call(self, call_sid, from_number, to_number):
         """Handle incoming call by streaming to Deepgram Voice Agent."""
@@ -115,6 +116,7 @@ class TwilioService:
     def make_outbound_call(self, to_number, message):
         """Make an outbound call with a message"""
         try:
+            self._ensure_client()
             call = self.client.calls.create(
                 twiml=f'<Response><Say>{message}</Say></Response>',
                 to=to_number,

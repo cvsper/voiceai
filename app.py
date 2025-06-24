@@ -173,7 +173,9 @@ def create_app():
                 # Generate TwiML response
                 if call_status == 'ringing':
                     try:
-                        twiml_response = get_twilio_service().handle_incoming_call(call_sid, from_number, to_number)
+                        # Get Twilio service within app context to ensure proper initialization
+                        twilio_service = get_twilio_service()
+                        twiml_response = twilio_service.handle_incoming_call(call_sid, from_number, to_number)
                         logger.info(f"Generated TwiML: {twiml_response}")
                     except Exception as twiml_error:
                         logger.error(f"Error generating TwiML: {twiml_error}")
