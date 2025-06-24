@@ -8,9 +8,7 @@ class DeepgramService:
     def __init__(self):
         self.api_key = None
         self.deepgram = None
-        self._audio_cache = {}
         self._initialize_client()
-        self._pregenerate_common_responses()
     
     def _initialize_client(self):
         try:
@@ -202,9 +200,9 @@ class DeepgramService:
             
             options = SpeakOptions(
                 model="aura-2-amalthea-en",  # Aura 2 - Amalthea (Filipina, feminine voice)
-                encoding="mulaw",     # Faster mulaw encoding for telephony
-                sample_rate=8000,     # 8kHz telephony sample rate  
-                container="wav"       # WAV container for compatibility
+                encoding="linear16",  # PCM encoding 
+                sample_rate=8000,     # 8kHz telephony sample rate
+                container="wav"       # WAV container for better compatibility
             )
             
             # Use the correct API method for streaming audio
@@ -281,77 +279,6 @@ class DeepgramService:
         except Exception as e:
             logger.error(f"Error creating Deepgram TTS URL: {e}")
             return None
-    
-    def _pregenerate_common_responses(self):
-        """Pre-generate audio for common responses to reduce delay"""
-        try:
-            if not self.deepgram:
-                return
-                
-            common_responses = [
-                "I'm processing your request. Please continue.",
-                "I understand. How can I help you with that?",
-                "Thank you for that information. What else can I help you with?",
-                "I'm here to help you. Please tell me more.",
-                "Let me help you with that request.",
-                "I understand your request. Let me assist you.",
-                "Thank you for calling. How may I help you today?",
-                "I'm listening. Please continue.",
-                "How can I assist you further?",
-                "I'm ready to help you with that."
-            ]
-            
-            logger.info("Pre-generating common response audio...")
-            for response_text in common_responses:
-                try:
-                    audio_data = self.text_to_speech(response_text)
-                    if audio_data:
-                        # Cache using a hash of the text
-                        import hashlib
-                        text_hash = hashlib.md5(response_text.encode()).hexdigest()
-                        self._audio_cache[text_hash] = {
-                            'text': response_text,
-                            'audio_data': audio_data
-                        }
-                        logger.info(f"Pre-generated audio for: {response_text[:30]}...")
-                except Exception as e:
-                    logger.warning(f"Failed to pre-generate audio for '{response_text[:30]}...': {e}")
-                    
-            logger.info(f"Pre-generated {len(self._audio_cache)} common responses")
-            
-        except Exception as e:
-            logger.error(f"Error in pre-generation: {e}")
-    
-    def get_cached_response_url(self, text):
-        """Get pre-cached audio URL for common responses"""
-        try:
-            import hashlib
-            text_hash = hashlib.md5(text.encode()).hexdigest()
-            
-            if text_hash in self._audio_cache:
-                cached_item = self._audio_cache[text_hash]
-                audio_data = cached_item['audio_data']
-                
-                # Store in Flask app context for serving
-                import uuid
-                from flask import current_app
-                
-                audio_id = str(uuid.uuid4())
-                if not hasattr(current_app, '_deepgram_audio_cache'):
-                    current_app._deepgram_audio_cache = {}
-                
-                current_app._deepgram_audio_cache[audio_id] = audio_data
-                
-                base_url = current_app.config.get('BASE_URL', 'http://localhost:5001')
-                audio_url = f"{base_url}/api/audio/{audio_id}"
-                
-                logger.info(f"Using pre-cached audio for: {text[:30]}...")
-                return audio_url
-                
-        except Exception as e:
-            logger.error(f"Error getting cached response: {e}")
-            
-        return None
     
     def process_twilio_transcription(self, transcription_text, call_sid):
         """Process Twilio's built-in transcription"""

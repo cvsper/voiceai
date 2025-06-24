@@ -170,15 +170,7 @@ def create_app():
                     db.session.add(transcript)
                     
                     # Generate immediate AI response without complex analysis to avoid timeouts
-                    # Use shorter, faster responses
-                    if len(transcription_text) < 20:
-                        ai_response_text = "I understand. How can I help you with that?"
-                    elif "appointment" in transcription_text.lower() or "schedule" in transcription_text.lower():
-                        ai_response_text = "I understand your request. Let me assist you."
-                    elif "cleaning" in transcription_text.lower():
-                        ai_response_text = "I'm here to help you. Please tell me more."
-                    else:
-                        ai_response_text = "Thank you for that information. What else can I help you with?"
+                    ai_response_text = f"I heard you say: {transcription_text}. I'm here to help you with that. What specific assistance do you need?"
                     
                     # Save basic interaction (skip complex OpenAI analysis for now)
                     interaction = Interaction(
@@ -330,22 +322,15 @@ def create_app():
             if ai_response_text:
                 logger.info(f"Playing AI response: {ai_response_text[:50]}...")
                 
-                # Try to use cached response first for instant delivery
+                # Try to use Deepgram Aura 2 - Amalthea voice first
                 try:
-                    # Check for pre-cached common response
-                    cached_url = get_deepgram_service().get_cached_response_url(ai_response_text)
-                    if cached_url:
-                        logger.info(f"Using INSTANT cached Deepgram audio: {ai_response_text[:30]}...")
-                        response.play(cached_url)
+                    deepgram_audio_url = get_deepgram_service().text_to_speech_url(ai_response_text)
+                    if deepgram_audio_url:
+                        logger.info(f"Using Deepgram Aura Amalthea voice: {deepgram_audio_url}")
+                        response.play(deepgram_audio_url)
                     else:
-                        # Generate fresh Deepgram audio
-                        deepgram_audio_url = get_deepgram_service().text_to_speech_url(ai_response_text)
-                        if deepgram_audio_url:
-                            logger.info(f"Using fresh Deepgram Aura Amalthea voice: {deepgram_audio_url}")
-                            response.play(deepgram_audio_url)
-                        else:
-                            logger.warning("Deepgram TTS failed, falling back to Twilio voice")
-                            response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                        logger.warning("Deepgram TTS failed, falling back to Twilio voice")
+                        response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                 except Exception as deepgram_error:
                     logger.error(f"Deepgram TTS error: {deepgram_error}")
                     logger.info("Falling back to Twilio voice")
