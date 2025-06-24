@@ -1,6 +1,6 @@
 import requests
 import logging
-from flask import current_app
+from quart import current_app
 import io
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class ElevenLabsService:
         try:
             import os
             import uuid
-            from flask import url_for
+            from quart import url_for
             
             # Generate audio
             audio_data = self.text_to_speech_stream(text, voice_id)

@@ -93,39 +93,17 @@ def create_app():
             return f(*args, **kwargs)
         return decorated_function
     
-    # Monkey patch Flask-SQLAlchemy to prevent teardown registration
-    original_init_app = db.init_app
-    def patched_init_app(app_instance):
-        # Call the original init_app but intercept teardown registration
-        original_teardown_appcontext = app_instance.teardown_appcontext
-        
-        def noop_teardown_appcontext(func):
-            # Don't register Flask-SQLAlchemy's teardown
-            if hasattr(func, '__name__') and 'teardown' in func.__name__.lower():
-                return func  # Return but don't register
-            return original_teardown_appcontext(func)
-        
-        app_instance.teardown_appcontext = noop_teardown_appcontext
-        result = original_init_app(app_instance)
-        app_instance.teardown_appcontext = original_teardown_appcontext  # Restore for other uses
-        return result
-    
-    db.init_app = patched_init_app
-    
-    # Initialize database with app
+    # Initialize database with app using standard Flask-SQLAlchemy
     db.init_app(app)
     
-    # Disable automatic teardown and commit behaviors
-    app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = False
-    
-    # Initialize database tables directly using SQLAlchemy
-    try:
-        from sqlalchemy import create_engine
-        engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-        db.metadata.create_all(engine)
-    except Exception as e:
-        logger.error(f"Database initialization error: {e}")
-        # Continue anyway - tables might already exist
+    # Initialize database tables
+    with app.app_context():
+        try:
+            db.create_all()
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            logger.error(f"Database initialization error: {e}")
+            # Continue anyway - tables might already exist
     
     # WEBHOOK ENDPOINTS
     
@@ -141,53 +119,51 @@ def create_app():
             
             logger.info(f"Voice webhook: {call_sid} - {call_status}")
             
-            # Handle all operations within a single app context
-            async with app.app_context():
-                # Create or update call record
-                call = Call.query.filter_by(call_sid=call_sid).first()
-                if not call:
-                    call = Call(
-                        call_sid=call_sid,
-                        from_number=from_number,
-                        to_number=to_number,
-                        status=call_status,
-                        call_type='inbound'
-                    )
-                    db.session.add(call)
-                    db.session.commit()
-                    
-                    # Trigger CRM webhook for call started
-                    get_crm_service().trigger_call_started({
-                        'call_id': call.id,
-                        'call_sid': call_sid,
-                        'from_number': from_number,
-                        'to_number': to_number,
-                        'call_type': 'inbound'
-                    })
-                else:
-                    call.status = call_status
-                    if call_status in ['completed', 'busy', 'no-answer', 'failed']:
-                        call.end_time = datetime.utcnow()
-                    db.session.commit()
+            # Create or update call record
+            call = Call.query.filter_by(call_sid=call_sid).first()
+            if not call:
+                call = Call(
+                    call_sid=call_sid,
+                    from_number=from_number,
+                    to_number=to_number,
+                    status=call_status,
+                    call_type='inbound'
+                )
+                db.session.add(call)
+                db.session.commit()
                 
-                # Generate TwiML response
-                if call_status == 'ringing':
-                    try:
-                        # Get Twilio service within app context to ensure proper initialization
-                        twilio_service = get_twilio_service()
-                        twiml_response = twilio_service.handle_incoming_call(call_sid, from_number, to_number)
-                        logger.info(f"Generated TwiML: {twiml_response}")
-                    except Exception as twiml_error:
-                        logger.error(f"Error generating TwiML: {twiml_error}")
-                        # Fallback TwiML
-                        base_url = current_app.config['BASE_URL']
-                        twiml_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+                # Trigger CRM webhook for call started
+                get_crm_service().trigger_call_started({
+                    'call_id': call.id,
+                    'call_sid': call_sid,
+                    'from_number': from_number,
+                    'to_number': to_number,
+                    'call_type': 'inbound'
+                })
+            else:
+                call.status = call_status
+                if call_status in ['completed', 'busy', 'no-answer', 'failed']:
+                    call.end_time = datetime.utcnow()
+                db.session.commit()
+            
+            # Generate TwiML response
+            if call_status == 'ringing':
+                try:
+                    # Get Twilio service within app context to ensure proper initialization
+                    twilio_service = get_twilio_service()
+                    twiml_response = twilio_service.handle_incoming_call(call_sid, from_number, to_number)
+                    logger.info(f"Generated TwiML: {twiml_response}")
+                except Exception as twiml_error:
+                    logger.error(f"Error generating TwiML: {twiml_error}")
+                    # Fallback TwiML
+                    base_url = current_app.config['BASE_URL']
+                    twiml_response = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="alice" language="en-US">Hello! Thank you for calling. I'm your AI assistant. How can I help you today?</Say>
     <Record action="{base_url}/webhooks/recording" method="POST" maxLength="300" transcribe="true" transcribeCallback="{base_url}/webhooks/transcribe" playBeep="false" />
 </Response>'''
-                else:
-                    twiml_response = '<Response></Response>'
+            else:
+                twiml_response = '<Response></Response>'
             
             return twiml_response, 200, {'Content-Type': 'text/xml'}
             
@@ -361,35 +337,34 @@ def create_app():
             
             logger.info(f"Recording webhook for {call_sid}: {recording_url}")
             
-            # Update call with recording info first within app context
-            async with app.app_context():
-                call = Call.query.filter_by(call_sid=call_sid).first()
-                if call:
-                    call.recording_url = recording_url
-                    call.duration = int(recording_duration) if recording_duration else None
-                    db.session.commit()
-                    
-                    # Process with Deepgram transcription immediately
-                    if recording_url:
-                        try:
-                            logger.info(f"Starting Deepgram transcription for {recording_url}")
-                            transcript_data = get_deepgram_service().transcribe_file(recording_url)
+            # Update call with recording info first
+            call = Call.query.filter_by(call_sid=call_sid).first()
+            if call:
+                call.recording_url = recording_url
+                call.duration = int(recording_duration) if recording_duration else None
+                db.session.commit()
+                
+                # Process with Deepgram transcription immediately
+                if recording_url:
+                    try:
+                        logger.info(f"Starting Deepgram transcription for {recording_url}")
+                        transcript_data = get_deepgram_service().transcribe_file(recording_url)
+                        
+                        if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
+                            # Get the transcription text
+                            transcription_text = ' '.join([item['text'] for item in transcript_data])
+                            logger.info(f"Deepgram transcription: '{transcription_text}'")
                             
-                            if transcript_data and not any(item.get('text', '').startswith('Mock') for item in transcript_data):
-                                # Get the transcription text
-                                transcription_text = ' '.join([item['text'] for item in transcript_data])
-                                logger.info(f"Deepgram transcription: '{transcription_text}'")
-                                
-                                # Save transcript
-                                transcript = Transcript(
-                                    call_id=call.id,
-                                    speaker='caller',
-                                    text=transcription_text,
-                                    confidence=transcript_data[0].get('confidence', 0.9),
-                                    is_final=True
-                                )
-                                db.session.add(transcript)
-                            
+                            # Save transcript
+                            transcript = Transcript(
+                                call_id=call.id,
+                                speaker='caller',
+                                text=transcription_text,
+                                confidence=transcript_data[0].get('confidence', 0.9),
+                                is_final=True
+                            )
+                            db.session.add(transcript)
+                        
                             # Generate intelligent AI response using OpenAI
                             try:
                                 ai_response_text = get_openai_service().generate_quick_response(transcription_text)
@@ -438,25 +413,24 @@ def create_app():
                                 logger.error(f"Deepgram TTS error: {deepgram_error}")
                                 response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                             
-                                # Continue recording
-                                response.record(
-                                    action=f"{current_app.config['BASE_URL']}/webhooks/recording",
-                                    method='POST',
-                                    max_length=30,
-                                    timeout=10,
-                                    transcribe=False,  # Disable Twilio transcription - use Deepgram only
-                                    play_beep=False
-                                )
-                                
-                                twiml_response = str(response)
-                                logger.info(f"Deepgram-powered AI response: {twiml_response}")
-                                return twiml_response, 200, {'Content-Type': 'text/xml'}
-                                
-                            else:
-                                logger.warning("Deepgram transcription failed or returned mock data")
+                            # Continue recording
+                            response.record(
+                                action=f"{current_app.config['BASE_URL']}/webhooks/recording",
+                                method='POST',
+                                max_length=30,
+                                timeout=10,
+                                transcribe=False,  # Disable Twilio transcription - use Deepgram only
+                                play_beep=False
+                            )
                             
-                        except Exception as deepgram_error:
-                            logger.error(f"Deepgram transcription failed: {deepgram_error}")
+                            twiml_response = str(response)
+                            logger.info(f"Deepgram-powered AI response: {twiml_response}")
+                            return twiml_response, 200, {'Content-Type': 'text/xml'}
+                        else:
+                            logger.warning("Deepgram transcription failed or returned mock data")
+                        
+                    except Exception as deepgram_error:
+                        logger.error(f"Deepgram transcription failed: {deepgram_error}")
                         
                 # Fallback if transcription failed
                 from twilio.twiml.voice_response import VoiceResponse

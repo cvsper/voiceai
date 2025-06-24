@@ -1,8 +1,8 @@
-from flask_sqlalchemy import SQLAlchemy
+from quart_sqlalchemy import QuartSQLAlchemy
 from datetime import datetime
 import json
 
-db = SQLAlchemy()
+db = QuartSQLAlchemy()
 
 class Call(db.Model):
     id = db.Column(db.Integer, primary_key=True)

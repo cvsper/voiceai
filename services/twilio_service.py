@@ -1,6 +1,6 @@
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
-from flask import current_app
+from quart import current_app
 import logging
 
 logger = logging.getLogger(__name__)
