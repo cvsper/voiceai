@@ -1,1 +1,1 @@
-web: cd demo && npm ci --production=false && npm run build && cd .. && gunicorn app:app
+web: hypercorn app:app -b 0.0.0.0:$PORT

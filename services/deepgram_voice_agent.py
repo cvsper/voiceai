@@ -94,11 +94,11 @@ class DeepgramVoiceAgent:
             logger.error(f"Error processing Twilio message: {e}", exc_info=True)
 
     # Deepgram Event Handlers
-    async def on_welcome(self, **kwargs):
-        logger.info("Deepgram Agent Welcome")
+    async def on_welcome(self, data, **kwargs):
+        logger.info(f"Deepgram Agent Welcome: {data}")
 
-    async def on_agent_audio_done(self, **kwargs):
-        logger.info("Deepgram Agent finished speaking.")
+    async def on_agent_audio_done(self, data, **kwargs):
+        logger.info(f"Deepgram Agent finished speaking: {data}")
 
     async def on_conversation_text(self, data, **kwargs):
         # Forward agent's speech back to Twilio
