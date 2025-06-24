@@ -21,25 +21,41 @@ class TwilioService:
             raise
     
     def handle_incoming_call(self, call_sid, from_number, to_number):
-        """Handle incoming call with full Deepgram voice using improved approach"""
+        """Handle incoming call with Deepgram Aura 2 - Amalthea voice"""
         try:
             response = VoiceResponse()
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
-            # Use reliable Twilio voice for now to get conversation working
-            logger.info(f"Using Twilio voice greeting for call {call_sid}")
-            response.say(
-                "Hello! Thank you for calling. I'm your AI assistant. How can I help you today?",
-                voice='Polly.Joanna-Neural',
-                language='en-US'
-            )
+            # Try to use Deepgram Aura 2 - Amalthea voice for greeting
+            greeting_text = "Hello! Thank you for calling. I'm your AI assistant powered by Deepgram Aura Amalthea voice technology. How can I help you today?"
             
-            # Add immediate AI prompt after greeting
-            response.say(
-                "I'm listening. Please tell me how I can help you today.",
-                voice='Polly.Joanna-Neural',
-                language='en-US'
-            )
+            try:
+                from services.deepgram_service import DeepgramService
+                deepgram_service = DeepgramService()
+                greeting_url = deepgram_service.text_to_speech_url(greeting_text)
+                
+                if greeting_url:
+                    logger.info(f"Using Deepgram Aura Amalthea voice greeting for call {call_sid}")
+                    response.play(greeting_url)
+                else:
+                    logger.warning("Deepgram greeting failed, using Twilio voice")
+                    response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
+            except Exception as deepgram_error:
+                logger.error(f"Deepgram greeting error: {deepgram_error}")
+                logger.info("Falling back to Twilio voice greeting")
+                response.say(greeting_text, voice='Polly.Joanna-Neural', language='en-US')
+            
+            # Add listening prompt
+            prompt_text = "I'm listening. Please tell me how I can help you today."
+            try:
+                prompt_url = deepgram_service.text_to_speech_url(prompt_text)
+                if prompt_url:
+                    response.play(prompt_url)
+                else:
+                    response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
+            except Exception as e:
+                logger.error(f"Deepgram prompt error: {e}")
+                response.say(prompt_text, voice='Polly.Joanna-Neural', language='en-US')
             
             # Set up continuous conversation with enhanced webhooks
             response.record(

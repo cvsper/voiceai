@@ -321,8 +321,20 @@ def create_app():
             
             if ai_response_text:
                 logger.info(f"Playing AI response: {ai_response_text[:50]}...")
-                # Play AI response
-                response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                
+                # Try to use Deepgram Aura 2 - Amalthea voice first
+                try:
+                    deepgram_audio_url = get_deepgram_service().text_to_speech_url(ai_response_text)
+                    if deepgram_audio_url:
+                        logger.info(f"Using Deepgram Aura Amalthea voice: {deepgram_audio_url}")
+                        response.play(deepgram_audio_url)
+                    else:
+                        logger.warning("Deepgram TTS failed, falling back to Twilio voice")
+                        response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
+                except Exception as deepgram_error:
+                    logger.error(f"Deepgram TTS error: {deepgram_error}")
+                    logger.info("Falling back to Twilio voice")
+                    response.say(ai_response_text, voice='Polly.Joanna-Neural', language='en-US')
                 
                 # Continue recording for more conversation
                 response.record(
@@ -337,7 +349,19 @@ def create_app():
             else:
                 # Fallback if no AI response ready
                 logger.warning(f"No AI response ready for {call_sid}, using fallback")
-                response.say("I'm processing your request. Please continue.", voice='Polly.Joanna-Neural', language='en-US')
+                fallback_text = "I'm processing your request. Please continue."
+                
+                # Try Deepgram voice for fallback too
+                try:
+                    deepgram_fallback_url = get_deepgram_service().text_to_speech_url(fallback_text)
+                    if deepgram_fallback_url:
+                        logger.info("Using Deepgram Aura Amalthea voice for fallback")
+                        response.play(deepgram_fallback_url)
+                    else:
+                        response.say(fallback_text, voice='Polly.Joanna-Neural', language='en-US')
+                except Exception as e:
+                    logger.error(f"Deepgram fallback TTS error: {e}")
+                    response.say(fallback_text, voice='Polly.Joanna-Neural', language='en-US')
                 response.record(
                     action=f"{current_app.config['BASE_URL']}/webhooks/recording",
                     method='POST',
