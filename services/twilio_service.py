@@ -27,7 +27,7 @@ class TwilioService:
             base_url = current_app.config.get('BASE_URL', 'https://voiceai-eh24.onrender.com')
             
             # Try to use Deepgram Aura 2 - Amalthea voice for greeting
-            greeting_text = "Hello! Thank you for calling palm beach maids, how can i help you today?"
+            greeting_text = "Hello! Thank you for calling Palm Beach Maids, how can i help you today?"
             
             try:
                 from services.deepgram_service import DeepgramService
@@ -55,7 +55,7 @@ class TwilioService:
                 max_length=30,  # Shorter recordings for more responsive conversation
                 transcribe=False,  # Disable Twilio transcription - use Deepgram only
                 play_beep=False,
-                timeout=10  # Wait 10 seconds for speech
+                timeout=5  # Wait 10 seconds for speech
             )
             
             return str(response)
