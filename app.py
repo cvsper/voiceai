@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static', static_url_path='')
     app.config.from_object(Config)
     
     # Initialize extensions
@@ -57,10 +57,16 @@ def create_app():
 
 app = create_app()
 
-# Root endpoint
-@app.route('/', methods=['GET'])
+# Root endpoint - serve dashboard
+@app.route('/')
 def index():
-    """Root endpoint - API status"""
+    """Serve the React dashboard"""
+    return app.send_static_file('index.html')
+
+# API status endpoint
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    """API status endpoint"""
     return jsonify({
         'status': 'Voice AI Assistant API',
         'version': '1.0.0',
@@ -586,6 +592,14 @@ def not_found(error):
 def internal_error(error):
     db.session.rollback()
     return jsonify({'error': 'Internal server error'}), 500
+
+# Catch-all route for React Router (must be last)
+@app.route('/<path:path>')
+def serve_react_app(path):
+    """Serve React app for all non-API routes"""
+    if path.startswith('api/') or path.startswith('webhooks/'):
+        return jsonify({'error': 'Not found'}), 404
+    return app.send_static_file('index.html')
 
 # WebSocket server for Twilio media streaming
 def start_websocket_server():
