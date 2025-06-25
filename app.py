@@ -57,6 +57,22 @@ def create_app():
 
 app = create_app()
 
+# Root endpoint
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint - API status"""
+    return jsonify({
+        'status': 'Voice AI Assistant API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/api/health',
+            'voice_webhook': '/webhooks/voice',
+            'test_call': '/api/test-call',
+            'dashboard': '/api/dashboard'
+        },
+        'voice_agent': 'Deepgram Voice Agent V1 with aura-2-amalthea-en'
+    })
+
 # Simple test endpoint for Twilio
 @app.route('/test-twilio', methods=['GET', 'POST'])
 def test_twilio():
