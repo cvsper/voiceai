@@ -1,0 +1,9 @@
+version: "2"
+authtoken: YOUR_NGROK_AUTHTOKEN_HERE
+tunnels:
+  flask-api:
+    proto: http
+    addr: 5001
+  websocket-v1:
+    proto: http
+    addr: 8767

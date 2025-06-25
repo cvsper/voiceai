@@ -1,0 +1,8 @@
+version: "2"
+tunnels:
+  flask:
+    addr: 5001
+    proto: http
+  websocket:
+    addr: 8767
+    proto: http
