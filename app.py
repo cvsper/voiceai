@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 import subprocess
 import time
+from werkzeug.serving import is_running_from_reloader
 
 # Import models and config
 from config import Config
@@ -177,16 +178,17 @@ def simple_voice():
 # Webhook handlers
 @app.route('/webhooks/voice', methods=['POST'])
 def handle_voice_webhook():
-    """Handle incoming Twilio voice webhooks"""
+    """Handle incoming Twilio voice webhooks - Connect to Voice Agent V1"""
     try:
-        logger.info(f"Voice webhook called with data: {dict(request.form)}")
+        logger.info(f"🎯 Voice webhook called with data: {dict(request.form)}")
+        
         # Get call information
         call_sid = request.form.get('CallSid')
         from_number = request.form.get('From')
         to_number = request.form.get('To')
         call_status = request.form.get('CallStatus')
         
-        logger.info(f"Voice webhook: {call_sid} from {from_number} to {to_number} status {call_status}")
+        logger.info(f"📞 Voice webhook: {call_sid} from {from_number} to {to_number} status {call_status}")
         
         # Create or update call record
         call = Call.query.filter_by(sid=call_sid).first()
@@ -200,40 +202,38 @@ def handle_voice_webhook():
             db.session.add(call)
             db.session.commit()
         
-        # Connect to Deepgram Voice Agent with aura-2-amalthea-en voice
+        # Connect to Deepgram Voice Agent V1 with aura-2-amalthea-en voice
         from twilio.twiml.voice_response import VoiceResponse, Stream
         
         response = VoiceResponse()
         
-        # SOLUTION: Use Deepgram TTS API to demonstrate aura-2-amalthea-en voice
-        # This gives you the exact voice you want while working within current constraints
+        # Welcome message with Deepgram's natural voice
+        response.say("Hello! Connecting you with our AI assistant powered by Deepgram's advanced voice technology with natural conversation.", voice='Polly.Joanna-Neural')
         
-        # Use Deepgram's aura voice for the greeting
-        response.say("Hello! Welcome to our AI assistant. I'm powered by Deepgram's advanced voice technology and can help you with appointments, availability, and questions about our services.", voice='Polly.Joanna-Neural')
+        # Connect to Voice Agent V1 WebSocket
+        # For Render deployment, we'll use an external WebSocket service
+        # or direct Deepgram Voice Agent connection
         
-        # For now, continue with the working conversation flow
-        # TODO: Integrate full Voice Agent V1 when tunnel infrastructure is ready
+        if 'localhost' in request.host or '127.0.0.1' in request.host:
+            # For local development, use localhost WebSocket
+            websocket_url = f"ws://localhost:8767?call_sid={call_sid}"
+        else:
+            # For production deployment, connect directly to a WebSocket service
+            # We'll create a simple relay that connects to Deepgram Voice Agent
+            websocket_url = f"wss://voiceai-eh24.onrender.com/ws/voice-agent-v1?call_sid={call_sid}"
+            
+        logger.info(f"🔗 Connecting to Voice Agent V1 WebSocket: {websocket_url}")
         
-        from twilio.twiml.voice_response import Gather
-        
-        gather = Gather(
-            input='speech',
-            timeout=10,
-            speech_timeout='auto',
-            action=f'/webhooks/voice-input-deepgram?call_sid={call_sid}',
-            method='POST'
-        )
-        gather.say("How can I assist you today?", voice='Polly.Joanna-Neural')
-        response.append(gather)
-        
-        # Fallback
-        response.say("Thank you for calling our AI assistant!", voice='Polly.Joanna-Neural')
-        response.hangup()
+        # Create WebSocket stream to Voice Agent V1
+        stream = Stream(url=websocket_url)
+        response.append(stream)
         
         return str(response), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
-        logger.error(f"Error handling voice webhook: {e}")
+        logger.error(f"❌ Error handling voice webhook: {e}")
+        import traceback
+        logger.error(f"💥 Traceback: {traceback.format_exc()}")
         return "Error processing webhook", 500
 
 @app.route('/webhooks/voice-input', methods=['POST'])
@@ -455,7 +455,25 @@ def handle_call_status_webhook():
         logger.error(f"Error handling call status webhook: {e}")
         return "Error processing webhook", 500
 
-# WebSocket endpoints
+# WebSocket endpoints - these need to be actual WebSocket handlers for production
+from flask import request as flask_request
+
+@app.route('/ws/voice-agent-v1')
+def voice_agent_v1_endpoint():
+    """WebSocket endpoint for Voice Agent V1 - Proxy to internal WebSocket server"""
+    call_sid = request.args.get('call_sid')
+    
+    # In production, we need to handle WebSocket upgrade
+    # For now, return connection info for debugging
+    return jsonify({
+        'message': 'Voice Agent V1 WebSocket Proxy',
+        'call_sid': call_sid,
+        'voice': 'aura-2-amalthea-en',
+        'api_version': 'v1',
+        'internal_port': 8767,
+        'status': 'proxy_ready'
+    })
+
 @app.route('/ws/twilio-stream')
 def websocket_endpoint():
     """WebSocket endpoint for Twilio media streaming"""
@@ -490,19 +508,6 @@ def voice_agent_endpoint():
         'message': 'WebSocket endpoint for Voice Agent with aura-2-amalthea-en',
         'call_sid': call_sid,
         'voice': 'aura-2-amalthea-en',
-        'status': 'ready'
-    })
-
-@app.route('/ws/voice-agent-v1')
-def voice_agent_v1_endpoint():
-    """WebSocket endpoint for Voice Agent V1"""
-    call_sid = request.args.get('call_sid')
-    
-    return jsonify({
-        'message': 'WebSocket endpoint for Voice Agent V1 with aura-2-amalthea-en',
-        'call_sid': call_sid,
-        'voice': 'aura-2-amalthea-en',
-        'api_version': 'v1',
         'status': 'ready'
     })
 
@@ -708,17 +713,13 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     
-    # Start WebSocket server in a separate thread
-    websocket_thread = threading.Thread(target=start_websocket_server, daemon=True)
-    websocket_thread.start()
+    # Only start Voice Agent V1 server for production deployment
+    if not is_running_from_reloader():
+        # Start Voice Agent V1 server in a separate thread for production
+        voice_agent_v1_thread = threading.Thread(target=start_voice_agent_v1_server, daemon=True)
+        voice_agent_v1_thread.start()
+        logger.info("🚀 Voice Agent V1 server started for production")
     
-    # Start Voice Agent server in a separate thread
-    voice_agent_thread = threading.Thread(target=start_voice_agent_server, daemon=True)
-    voice_agent_thread.start()
-    
-    # Start Voice Agent V1 server in a separate thread
-    voice_agent_v1_thread = threading.Thread(target=start_voice_agent_v1_server, daemon=True)
-    voice_agent_v1_thread.start()
-    
-    # Start Flask app (disable debug mode for Twilio compatibility)
-    app.run(debug=False, host='0.0.0.0', port=5001)
+    # Start Flask app
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=False, host='0.0.0.0', port=port)

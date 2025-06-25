@@ -4,6 +4,7 @@ import json
 import base64
 import logging
 import ssl
+import os
 from deepgram import DeepgramClient
 import audioop
 import struct
@@ -346,12 +347,15 @@ async def handle_voice_agent_v1_websocket(websocket, path):
 
 async def start_voice_agent_v1_server():
     """Start Voice Agent V1 WebSocket server"""
+    # Use environment variable for port, fallback to 8767 for local dev
+    port = int(os.environ.get('WEBSOCKET_PORT', 8767))
+    
     server = await websockets.serve(
         handle_voice_agent_v1_websocket, 
         "0.0.0.0", 
-        8767  # Different port from old version
+        port
     )
-    logger.info("Voice Agent V1 WebSocket server started on port 8767")
+    logger.info(f"🚀 Voice Agent V1 WebSocket server started on port {port}")
     await server.wait_closed()
 
 if __name__ == "__main__":
