@@ -1,15 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
-import websockets
-import asyncio
-import threading
 import logging
 import os
 from datetime import datetime
-import subprocess
-import time
-from werkzeug.serving import is_running_from_reloader
 
 # Import models and config
 from config import Config
@@ -202,34 +196,26 @@ def handle_voice_webhook():
             db.session.add(call)
             db.session.commit()
         
-        from twilio.twiml.voice_response import VoiceResponse, Stream
+        from twilio.twiml.voice_response import VoiceResponse, Gather
         
         response = VoiceResponse()
         
-        # Welcome message for Voice Agent V1 connection
-        response.say("Hello! Connecting you with our advanced AI assistant powered by Deepgram's Voice Agent with aura voice technology.", voice='Polly.Joanna-Neural')
+        # Temporary: Use working conversation flow until WebSocket is stable
+        response.say("Hello! Welcome to our AI assistant powered by Deepgram's advanced voice technology. I can help you with appointments, availability, and questions about our services.", voice='Polly.Joanna-Neural')
         
-        # Connect to Voice Agent V1 WebSocket
-        # Railway supports multiple ports, so we can use the WebSocket server
-        if 'localhost' in request.host or '127.0.0.1' in request.host:
-            # For local development
-            websocket_url = f"ws://localhost:8767?call_sid={call_sid}"
-        elif 'railway.app' in request.host:
-            # For Railway deployment - construct WebSocket URL
-            railway_domain = request.host.replace('.railway.app', '')
-            websocket_url = f"wss://{railway_domain}-8767.railway.app?call_sid={call_sid}"
-        else:
-            # Generic WebSocket URL construction  
-            websocket_url = f"wss://{request.host}:8767?call_sid={call_sid}"
-            
-        logger.info(f"🔗 Connecting to Voice Agent V1 WebSocket: {websocket_url}")
+        # Use working Gather approach for Railway deployment
+        gather = Gather(
+            input='speech',
+            timeout=10,
+            speech_timeout='auto',
+            action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
+            method='POST'
+        )
+        gather.say("How can I assist you today?", voice='Polly.Joanna-Neural')
+        response.append(gather)
         
-        # Create WebSocket stream to Voice Agent V1
-        stream = Stream(url=websocket_url)
-        response.append(stream)
-        
-        # Add fallback in case WebSocket fails
-        response.say("If you experience any connection issues, please call back and we'll assist you.", voice='Polly.Joanna-Neural')
+        # Fallback
+        response.say("Thank you for experiencing our Deepgram-powered AI assistant!", voice='Polly.Joanna-Neural')
         response.hangup()
         
         return str(response), 200, {'Content-Type': 'text/xml'}
@@ -830,36 +816,21 @@ def start_voice_agent_v1_server():
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_voice_agent_v1_server())
 
-def start_voice_agent_safely():
-    """Safely start Voice Agent V1 server with error handling"""
-    try:
-        logger.info("🚀 Starting Voice Agent V1 WebSocket server...")
-        start_voice_agent_v1_server()
-    except Exception as e:
-        logger.error(f"❌ Failed to start Voice Agent V1 server: {e}")
-        # Don't crash the main app if WebSocket server fails
-
 if __name__ == '__main__':
-    # Create database tables
+    # Minimal startup for Railway deployment
+    logger.info("🚀 Starting Voice AI Assistant...")
+    
+    # Create database tables (skip on errors)
     try:
         with app.app_context():
             db.create_all()
-        logger.info("✅ Database tables created successfully")
+        logger.info("✅ Database initialized")
     except Exception as e:
-        logger.error(f"❌ Database setup failed: {e}")
+        logger.warning(f"⚠️ Database setup skipped: {e}")
     
-    # Start Voice Agent V1 server in background (non-blocking)
-    if not is_running_from_reloader():
-        voice_agent_v1_thread = threading.Thread(target=start_voice_agent_safely, daemon=True)
-        voice_agent_v1_thread.start()
-        logger.info("🔄 Voice Agent V1 server thread started")
-    
-    # Start Flask app immediately (don't wait for WebSocket server)
+    # Start Flask app immediately - no WebSocket for now
     port = int(os.environ.get('PORT', 5001))
     logger.info(f"🌐 Starting Flask app on port {port}")
     
-    try:
-        app.run(debug=False, host='0.0.0.0', port=port)
-    except Exception as e:
-        logger.error(f"❌ Flask app failed to start: {e}")
-        raise
+    # Use simple Flask server for Railway
+    app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
