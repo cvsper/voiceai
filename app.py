@@ -202,27 +202,31 @@ def handle_voice_webhook():
             db.session.add(call)
             db.session.commit()
         
-        from twilio.twiml.voice_response import VoiceResponse, Gather
+        from twilio.twiml.voice_response import VoiceResponse, Stream
         
         response = VoiceResponse()
         
-        # Enhanced welcome message mentioning Deepgram's aura voice
-        response.say("Hello! Welcome to our AI assistant. I'm powered by Deepgram's advanced aura voice technology, providing natural and intelligent conversation. I can help you with appointments, availability, and questions about our services.", voice='Polly.Joanna-Neural')
+        # Welcome message for Voice Agent V1 connection
+        response.say("Hello! Connecting you with our advanced AI assistant powered by Deepgram's Voice Agent with aura voice technology.", voice='Polly.Joanna-Neural')
         
-        # Use enhanced conversation flow with Deepgram branding
-        gather = Gather(
-            input='speech',
-            timeout=10,
-            speech_timeout='auto',
-            action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
-            method='POST'
-        )
-        gather.say("How can I assist you today?", voice='Polly.Joanna-Neural')
-        response.append(gather)
+        # Connect to Voice Agent V1 WebSocket
+        # Railway supports multiple ports, so we can use the WebSocket server
+        if 'localhost' in request.host or '127.0.0.1' in request.host:
+            # For local development
+            websocket_url = f"ws://localhost:8767?call_sid={call_sid}"
+        elif 'railway.app' in request.host:
+            # For Railway deployment - construct WebSocket URL
+            railway_domain = request.host.replace('.railway.app', '')
+            websocket_url = f"wss://{railway_domain}-8767.railway.app?call_sid={call_sid}"
+        else:
+            # Generic WebSocket URL construction  
+            websocket_url = f"wss://{request.host}:8767?call_sid={call_sid}"
+            
+        logger.info(f"🔗 Connecting to Voice Agent V1 WebSocket: {websocket_url}")
         
-        # Fallback
-        response.say("Thank you for experiencing our Deepgram-powered AI assistant!", voice='Polly.Joanna-Neural')
-        response.hangup()
+        # Create WebSocket stream to Voice Agent V1
+        stream = Stream(url=websocket_url)
+        response.append(stream)
         
         return str(response), 200, {'Content-Type': 'text/xml'}
 
@@ -814,13 +818,14 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     
-    # Only start Voice Agent V1 server for production deployment
+    # Start Voice Agent V1 server for Railway deployment
     if not is_running_from_reloader():
-        # Start Voice Agent V1 server in a separate thread for production
+        # Start Voice Agent V1 server in a separate thread
         voice_agent_v1_thread = threading.Thread(target=start_voice_agent_v1_server, daemon=True)
         voice_agent_v1_thread.start()
-        logger.info("🚀 Voice Agent V1 server started for production")
+        logger.info("🚀 Voice Agent V1 WebSocket server started on port 8767")
     
-    # Start Flask app
+    # Start Flask app on Railway port
     port = int(os.environ.get('PORT', 5001))
+    logger.info(f"🌐 Starting Flask app on port {port}")
     app.run(debug=False, host='0.0.0.0', port=port)
