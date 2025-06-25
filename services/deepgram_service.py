@@ -1,6 +1,6 @@
 import json
 import logging
-from flask import current_app
+from quart import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +253,7 @@ class DeepgramService:
         """Convert text to speech and return a URL for Twilio to play"""
         try:
             import uuid
-            from flask import current_app
+            from quart import current_app
             
             # Generate audio
             audio_data = self.text_to_speech(text)

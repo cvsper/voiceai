@@ -3,7 +3,7 @@ import base64
 import json
 import logging
 import os
-from flask import current_app
+from quart import current_app
 from deepgram import (
     DeepgramClient,
     DeepgramClientOptions,
@@ -45,15 +45,15 @@ class DeepgramVoiceAgent:
                     listen=dict(provider=dict(type="deepgram", model="nova-2")),
                     think=dict(
                         provider=dict(type="open_ai", model="gpt-4o-mini"),
-                        prompt="You are a friendly and helpful AI assistant named Thalia. Your goal is to assist callers with their needs efficiently and courteously.",
+                        prompt="You are a friendly and helpful AI assistant. Your goal is to assist callers with their needs efficiently and courteously. Use the beautiful Aura 2 - Amalthea voice to provide warm, professional responses.",
                     ),
-                    speak=dict(provider=dict(type="deepgram", model="aura-2-thalia-en")),
+                    speak=dict(provider=dict(type="deepgram", model="aura-2-amalthea-en")),
                 ),
                 audio=dict(
                     input=dict(encoding="mulaw", sample_rate=8000),
                     output=dict(encoding="mulaw", sample_rate=8000, container="wav"),
                 ),
-                greeting="Hello! Thank you for calling. My name is Thalia, how can I help you today?"
+                greeting="Hello! Thank you for calling. I'm your AI assistant, how can I help you today?"
             )
 
             await self.dg_connection.start(options)
