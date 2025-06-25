@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Enhanced Flask app for Railway deployment with Voice AI features
+Enhanced Flask app for Railway deployment with Voice AI features + WebSocket support
 """
 import os
 import logging
+import threading
+import asyncio
 from flask import Flask, jsonify, request
 from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Flag to track if WebSocket server should start
+ENABLE_WEBSOCKET = os.environ.get('ENABLE_WEBSOCKET', 'false').lower() == 'true'
 
 # Create Flask app
 app = Flask(__name__, static_folder='static', static_url_path='')
@@ -46,7 +51,7 @@ def health():
 
 @app.route('/webhooks/voice', methods=['POST'])
 def voice_webhook():
-    """Enhanced voice webhook with Deepgram conversation"""
+    """Enhanced voice webhook with optional WebSocket support"""
     try:
         # Get call information
         call_sid = request.form.get('CallSid', 'unknown')
@@ -54,7 +59,29 @@ def voice_webhook():
         
         logger.info(f"📞 Voice call from {from_number}, SID: {call_sid}")
         
-        return '''<?xml version="1.0" encoding="UTF-8"?>
+        # Check if WebSocket is enabled for Voice Agent V1
+        if ENABLE_WEBSOCKET:
+            logger.info("🔗 Using Deepgram Voice Agent V1 WebSocket mode")
+            
+            # Construct WebSocket URL for Railway
+            if 'railway.app' in request.host:
+                # For Railway deployment - use different port
+                websocket_url = f"wss://{request.host.replace(':5001', ':8767')}?call_sid={call_sid}"
+            else:
+                # For local development or other hosting
+                websocket_url = f"wss://{request.host}:8767?call_sid={call_sid}"
+                
+            logger.info(f"🎯 WebSocket URL: {websocket_url}")
+            
+            return f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna-Neural">Hello! Connecting you with our advanced AI assistant powered by Deepgram's Voice Agent with aura voice technology.</Say>
+    <Stream url="{websocket_url}" />
+</Response>''', 200, {'Content-Type': 'text/xml'}
+        else:
+            # Use enhanced conversation mode (current working version)
+            logger.info("🎙️ Using enhanced conversation mode")
+            return '''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Joanna-Neural">Hello! Welcome to our AI assistant powered by Deepgram's advanced voice technology. I can help you with appointments, availability, and questions about our services.</Say>
     <Gather input="speech" timeout="10" speechTimeout="auto" action="/webhooks/voice-input-enhanced" method="POST">
@@ -63,6 +90,7 @@ def voice_webhook():
     <Say voice="Polly.Joanna-Neural">Thank you for calling our Deepgram-powered AI assistant. Have a great day!</Say>
     <Hangup/>
 </Response>''', 200, {'Content-Type': 'text/xml'}
+            
     except Exception as e:
         logger.error(f"Error in voice webhook: {e}")
         return '''<?xml version="1.0" encoding="UTF-8"?>
@@ -156,9 +184,162 @@ def serve_react_app(path):
     except:
         return jsonify({'error': 'Dashboard not available'}), 404
 
+# WebSocket server for Voice Agent V1 (optional)
+def start_websocket_server():
+    """Start WebSocket server for Deepgram Voice Agent V1"""
+    try:
+        import websockets
+        import json
+        import base64
+        import ssl
+        
+        logger.info("🚀 Starting Voice Agent V1 WebSocket server...")
+        
+        async def handle_websocket(websocket, path):
+            """Handle WebSocket connection for Voice Agent V1"""
+            call_sid = None
+            try:
+                logger.info(f"🔗 New WebSocket connection: {path}")
+                
+                # Extract call_sid from path
+                if 'call_sid=' in path:
+                    call_sid = path.split('call_sid=')[1].split('&')[0]
+                
+                if not call_sid:
+                    logger.error("❌ No call_sid provided in WebSocket")
+                    await websocket.close()
+                    return
+                
+                logger.info(f"🎯 Voice Agent V1 WebSocket connected for call {call_sid}")
+                
+                # Initialize Deepgram Voice Agent V1 connection
+                deepgram_api_key = os.environ.get('DEEPGRAM_API_KEY')
+                if not deepgram_api_key:
+                    logger.error("❌ No Deepgram API key found")
+                    await websocket.send(json.dumps({"error": "No API key configured"}))
+                    return
+                
+                # Connect to Deepgram Voice Agent V1
+                agent_url = "wss://agent.deepgram.com/v1/agent/converse"
+                headers = {"Authorization": f"token {deepgram_api_key}"}
+                
+                # Create SSL context
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                
+                async with websockets.connect(agent_url, extra_headers=headers, ssl=ssl_context) as agent_ws:
+                    logger.info(f"✅ Connected to Deepgram Voice Agent V1 for call {call_sid}")
+                    
+                    # Send Voice Agent V1 configuration
+                    config = {
+                        "type": "Settings",
+                        "audio": {
+                            "input": {"encoding": "linear16", "sample_rate": 8000},
+                            "output": {"encoding": "linear16", "sample_rate": 8000}
+                        },
+                        "agent": {
+                            "listen": {"provider": {"type": "deepgram", "model": "nova-2"}},
+                            "think": {
+                                "provider": {"type": "open_ai", "model": "gpt-4o-mini"},
+                                "prompt": "You are a helpful AI assistant for a business. You can help customers with booking appointments, checking availability, and answering questions. Keep responses concise and professional. When customers want to book appointments, ask for their name, preferred date, and time."
+                            },
+                            "speak": {"provider": {"type": "deepgram", "model": "aura-2-amalthea-en"}}
+                        }
+                    }
+                    await agent_ws.send(json.dumps(config))
+                    logger.info(f"📤 Sent Voice Agent V1 configuration for call {call_sid}")
+                    
+                    # Handle bidirectional communication
+                    async def relay_twilio_to_deepgram():
+                        async for message in websocket:
+                            try:
+                                data = json.loads(message)
+                                event = data.get('event')
+                                
+                                if event == 'media':
+                                    # Convert Twilio audio to Deepgram format
+                                    payload = data.get('media', {}).get('payload')
+                                    if payload:
+                                        import audioop
+                                        audio_data = base64.b64decode(payload)
+                                        linear_audio = audioop.ulaw2lin(audio_data, 2)
+                                        audio_b64 = base64.b64encode(linear_audio).decode('utf-8')
+                                        
+                                        await agent_ws.send(json.dumps({
+                                            "type": "UserAudio",
+                                            "audio": audio_b64
+                                        }))
+                                        
+                                elif event == 'connected':
+                                    await websocket.send(json.dumps({"event": "connected"}))
+                                    
+                            except Exception as e:
+                                logger.error(f"💥 Error relaying Twilio to Deepgram: {e}")
+                    
+                    async def relay_deepgram_to_twilio():
+                        async for message in agent_ws:
+                            try:
+                                data = json.loads(message)
+                                msg_type = data.get('type')
+                                
+                                if msg_type == "AgentAudio":
+                                    # Convert Deepgram audio to Twilio format
+                                    audio_data = data.get('audio')
+                                    if audio_data:
+                                        import audioop
+                                        linear_audio = base64.b64decode(audio_data)
+                                        mulaw_audio = audioop.lin2ulaw(linear_audio, 2)
+                                        audio_payload = base64.b64encode(mulaw_audio).decode('utf-8')
+                                        
+                                        await websocket.send(json.dumps({
+                                            "event": "media",
+                                            "streamSid": call_sid,
+                                            "media": {"payload": audio_payload}
+                                        }))
+                                        
+                                elif msg_type in ["UserTranscript", "AgentTranscript"]:
+                                    logger.info(f"🎤 {msg_type}: {data.get('transcript', '')}")
+                                    
+                            except Exception as e:
+                                logger.error(f"💥 Error relaying Deepgram to Twilio: {e}")
+                    
+                    # Run both relay tasks concurrently
+                    await asyncio.gather(
+                        relay_twilio_to_deepgram(),
+                        relay_deepgram_to_twilio()
+                    )
+                    
+            except Exception as e:
+                logger.error(f"💥 WebSocket error for call {call_sid}: {e}")
+            finally:
+                logger.info(f"🧹 WebSocket closed for call {call_sid}")
+        
+        async def start_server():
+            websocket_port = int(os.environ.get('WEBSOCKET_PORT', 8767))
+            server = await websockets.serve(handle_websocket, "0.0.0.0", websocket_port)
+            logger.info(f"🚀 Voice Agent V1 WebSocket server started on port {websocket_port}")
+            await server.wait_closed()
+        
+        # Run WebSocket server
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(start_server())
+        
+    except ImportError:
+        logger.warning("⚠️ WebSocket dependencies not available - install with: pip install websockets audioop")
+    except Exception as e:
+        logger.error(f"❌ Failed to start WebSocket server: {e}")
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     logger.info(f"🚀 Starting Enhanced Voice AI Assistant on port {port}")
+    
+    # Start WebSocket server in separate thread if enabled
+    if ENABLE_WEBSOCKET:
+        logger.info("🔄 Starting WebSocket server thread...")
+        websocket_thread = threading.Thread(target=start_websocket_server, daemon=True)
+        websocket_thread.start()
     
     app.run(
         debug=False,
