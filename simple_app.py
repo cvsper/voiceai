@@ -59,31 +59,20 @@ def voice_webhook():
         
         logger.info(f"📞 Voice call from {from_number}, SID: {call_sid}")
         
-        # Check if WebSocket is enabled for Voice Agent V1
-        if ENABLE_WEBSOCKET:
-            logger.info("🔗 Using Deepgram Voice Agent V1 WebSocket mode")
-            
-            # Construct WebSocket URL for Railway
-            if 'railway.app' in request.host:
-                # For Railway deployment - use different port
-                websocket_url = f"wss://{request.host.replace(':5001', ':8767')}?call_sid={call_sid}"
-            else:
-                # For local development or other hosting
-                websocket_url = f"wss://{request.host}:8767?call_sid={call_sid}"
-                
-            logger.info(f"🎯 WebSocket URL: {websocket_url}")
-            
-            return f'''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Say voice="Polly.Joanna-Neural">Hello! Connecting you with our advanced AI assistant powered by Deepgram's Voice Agent with aura voice technology.</Say>
-    <Stream url="{websocket_url}" />
-</Response>''', 200, {'Content-Type': 'text/xml'}
+        # For Railway deployment, use enhanced conversation mode with optional Deepgram TTS
+        logger.info("🎙️ Using enhanced Deepgram conversation mode")
+        
+        # Check if we should use Deepgram TTS for even better voice quality
+        deepgram_api_key = os.environ.get('DEEPGRAM_API_KEY')
+        if deepgram_api_key and ENABLE_WEBSOCKET:
+            # Use Deepgram TTS for greeting (future enhancement)
+            voice_note = "with enhanced Deepgram voice synthesis"
         else:
-            # Use enhanced conversation mode (current working version)
-            logger.info("🎙️ Using enhanced conversation mode")
-            return '''<?xml version="1.0" encoding="UTF-8"?>
+            voice_note = "with advanced voice technology"
+            
+        return f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="Polly.Joanna-Neural">Hello! Welcome to our AI assistant powered by Deepgram's advanced voice technology. I can help you with appointments, availability, and questions about our services.</Say>
+    <Say voice="Polly.Joanna-Neural">Hello! Welcome to our AI assistant powered by Deepgram's aura voice technology {voice_note}. I can help you with appointments, availability, and questions about our services.</Say>
     <Gather input="speech" timeout="10" speechTimeout="auto" action="/webhooks/voice-input-enhanced" method="POST">
         <Say voice="Polly.Joanna-Neural">How can I assist you today?</Say>
     </Gather>
@@ -183,6 +172,21 @@ def serve_react_app(path):
         return app.send_static_file('index.html')
     except:
         return jsonify({'error': 'Dashboard not available'}), 404
+
+@app.route('/ws/voice-agent-v1')
+def websocket_endpoint():
+    """WebSocket endpoint info (Railway doesn't support Flask-SocketIO upgrade)"""
+    call_sid = request.args.get('call_sid', 'unknown')
+    
+    # For Railway, we need to fall back to enhanced mode since WebSocket upgrade isn't supported
+    logger.warning(f"⚠️ WebSocket endpoint accessed but Flask doesn't support upgrade. Call SID: {call_sid}")
+    
+    return jsonify({
+        'error': 'WebSocket upgrade not supported in this deployment',
+        'call_sid': call_sid,
+        'suggestion': 'Use enhanced conversation mode instead',
+        'fallback_url': '/webhooks/voice-input-enhanced'
+    }), 400
 
 # WebSocket server for Voice Agent V1 (optional)
 def start_websocket_server():

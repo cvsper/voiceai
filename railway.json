@@ -15,7 +15,6 @@
     "production": {
       "variables": {
         "PORT": "5001",
-        "WEBSOCKET_PORT": "8767",
         "ENABLE_WEBSOCKET": "false"
       }
     }
