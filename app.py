@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
-from flask_socketio import SocketIO, emit
 import websockets
 import asyncio
 import threading
