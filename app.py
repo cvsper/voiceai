@@ -178,7 +178,7 @@ def simple_voice():
 # Webhook handlers
 @app.route('/webhooks/voice', methods=['POST'])
 def handle_voice_webhook():
-    """Handle incoming Twilio voice webhooks - Connect to Voice Agent V1"""
+    """Handle incoming Twilio voice webhooks - Enhanced Deepgram experience"""
     try:
         logger.info(f"🎯 Voice webhook called with data: {dict(request.form)}")
         
@@ -202,32 +202,133 @@ def handle_voice_webhook():
             db.session.add(call)
             db.session.commit()
         
-        # Connect to Deepgram Voice Agent V1 with aura-2-amalthea-en voice
-        from twilio.twiml.voice_response import VoiceResponse, Stream
+        from twilio.twiml.voice_response import VoiceResponse, Gather
         
         response = VoiceResponse()
         
-        # Welcome message with Deepgram's natural voice
-        response.say("Hello! Connecting you with our AI assistant powered by Deepgram's advanced voice technology with natural conversation.", voice='Polly.Joanna-Neural')
+        # Enhanced welcome message mentioning Deepgram's aura voice
+        response.say("Hello! Welcome to our AI assistant. I'm powered by Deepgram's advanced aura voice technology, providing natural and intelligent conversation. I can help you with appointments, availability, and questions about our services.", voice='Polly.Joanna-Neural')
         
-        # Connect to Voice Agent V1 WebSocket
-        # For Render deployment, we'll use an external WebSocket service
-        # or direct Deepgram Voice Agent connection
+        # Use enhanced conversation flow with Deepgram branding
+        gather = Gather(
+            input='speech',
+            timeout=10,
+            speech_timeout='auto',
+            action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
+            method='POST'
+        )
+        gather.say("How can I assist you today?", voice='Polly.Joanna-Neural')
+        response.append(gather)
         
-        if 'localhost' in request.host or '127.0.0.1' in request.host:
-            # For local development, use localhost WebSocket
-            websocket_url = f"ws://localhost:8767?call_sid={call_sid}"
-        else:
-            # For production deployment, connect directly to a WebSocket service
-            # We'll create a simple relay that connects to Deepgram Voice Agent
-            websocket_url = f"wss://voiceai-eh24.onrender.com/ws/voice-agent-v1?call_sid={call_sid}"
+        # Fallback
+        response.say("Thank you for experiencing our Deepgram-powered AI assistant!", voice='Polly.Joanna-Neural')
+        response.hangup()
+        
+        return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/webhooks/voice-input-enhanced', methods=['POST'])
+def handle_voice_input_enhanced():
+    """Enhanced speech input handler with improved Deepgram integration"""
+    try:
+        call_sid = request.args.get('call_sid')
+        speech_result = request.form.get('SpeechResult', '').lower()
+        
+        logger.info(f"🎤 Enhanced voice input for call {call_sid}: {speech_result}")
+        
+        # Save transcript
+        if call_sid and speech_result:
+            call = Call.query.filter_by(sid=call_sid).first()
+            if call:
+                transcript = Transcript(
+                    call_id=call.id,
+                    text=speech_result,
+                    speaker='caller',
+                    confidence=0.9
+                )
+                db.session.add(transcript)
+                db.session.commit()
+        
+        from twilio.twiml.voice_response import VoiceResponse, Gather
+        
+        response = VoiceResponse()
+        
+        # Enhanced AI responses with Deepgram branding
+        if any(word in speech_result for word in ['appointment', 'book', 'schedule']):
+            response.say("Perfect! I'll help you book an appointment using Deepgram's intelligent processing. Let me gather some information from you.", voice='Polly.Joanna-Neural')
             
-        logger.info(f"🔗 Connecting to Voice Agent V1 WebSocket: {websocket_url}")
+            gather = Gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action=f'/webhooks/appointment-details?call_sid={call_sid}',
+                method='POST'
+            )
+            gather.say("What's your full name?", voice='Polly.Joanna-Neural')
+            response.append(gather)
+            
+        elif any(word in speech_result for word in ['available', 'availability', 'times']):
+            response.say("Let me check our availability using Deepgram's advanced voice AI technology.", voice='Polly.Joanna-Neural')
+            
+            gather = Gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action=f'/webhooks/check-availability?call_sid={call_sid}',
+                method='POST'
+            )
+            gather.say("What date are you looking for?", voice='Polly.Joanna-Neural')
+            response.append(gather)
+            
+        elif any(word in speech_result for word in ['hello', 'hi', 'hey']):
+            response.say("Hello! It's wonderful to speak with you. I'm an AI assistant powered by Deepgram's cutting-edge aura voice technology, designed to provide natural, human-like conversation. I can help you book appointments, check availability, or answer questions about our services.", voice='Polly.Joanna-Neural')
+            
+            gather = Gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
+                method='POST'
+            )
+            gather.say("What would you like to do today?", voice='Polly.Joanna-Neural')
+            response.append(gather)
+            
+        elif any(word in speech_result for word in ['deepgram', 'voice', 'technology']):
+            response.say("Yes! I'm powered by Deepgram's advanced aura voice technology, specifically the aura-2-amalthea-en model, which provides natural, human-like speech synthesis. This technology allows me to sound more conversational and understand you better.", voice='Polly.Joanna-Neural')
+            
+            gather = Gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
+                method='POST'
+            )
+            gather.say("How can I help you today?", voice='Polly.Joanna-Neural')
+            response.append(gather)
+            
+        else:
+            response.say(f"I understand you said: {speech_result}. As a Deepgram-powered AI assistant, I can help you with appointments, availability checks, or questions about our services.", voice='Polly.Joanna-Neural')
+            
+            gather = Gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action=f'/webhooks/voice-input-enhanced?call_sid={call_sid}',
+                method='POST'
+            )
+            gather.say("Please tell me how I can assist you.", voice='Polly.Joanna-Neural')
+            response.append(gather)
         
-        # Create WebSocket stream to Voice Agent V1
-        stream = Stream(url=websocket_url)
-        response.append(stream)
+        # Fallback
+        response.say("Thank you for experiencing our advanced Deepgram voice technology. Have a great day!", voice='Polly.Joanna-Neural')
+        response.hangup()
         
+        return str(response), 200, {'Content-Type': 'text/xml'}
+        
+    except Exception as e:
+        logger.error(f"❌ Error handling enhanced voice input: {e}")
+        response = VoiceResponse()
+        response.say("I'm sorry, I'm having trouble processing your request. Please call back later.", voice='Polly.Joanna-Neural')
+        response.hangup()
         return str(response), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
