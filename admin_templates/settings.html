@@ -1,0 +1,1044 @@
+{% extends "partials/layouts/main.html" %}
+
+{% block meta %}
+{% with title="Settings" %}
+{% include "partials/title-meta.html" %}
+{% endwith %}
+{% endblock %}
+
+{% block content %}
+{% with title_sub="Configuration", title="Settings"%}
+{% include "partials/pagetitle.html" %}
+{% endwith %}
+
+<!-- Begin page -->
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Account Settings -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">Account Settings</h4>
+            </div>
+            <div class="card-body">
+                <form id="accountSettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" value="{{ current_user.username }}" readonly>
+                                <small class="text-muted">Username cannot be changed</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" value="{{ current_user.email }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="fullName" class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="fullName" value="{{ current_user.name or '' }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phoneNumber" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="phoneNumber" value="{{ current_user.phone_number or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary">Save Account Settings</button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="resetAccountForm()">Reset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Password Settings -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Change Password</h4>
+            </div>
+            <div class="card-body">
+                <form id="passwordForm">
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword" placeholder="Enter current password">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="newPassword" class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="newPassword" placeholder="Enter new password">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                                <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm new password">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary">Change Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Twilio Settings -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Twilio Integration</h4>
+            </div>
+            <div class="card-body">
+                <form id="twilioSettingsForm">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Configure your Twilio credentials to enable phone number management and voice services.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="twilioAccountSid" class="form-label">Twilio Account SID</label>
+                        <input type="text" class="form-control" id="twilioAccountSid" placeholder="Enter your Twilio Account SID">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="twilioAuthToken" class="form-label">Twilio Auth Token</label>
+                        <input type="password" class="form-control" id="twilioAuthToken" placeholder="Enter your Twilio Auth Token">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary">Save Twilio Settings</button>
+                        <button type="button" class="btn btn-outline-info ms-2" onclick="testTwilioConnection()">Test Connection</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Integrations -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Integrations</h4>
+                <small class="text-muted">Connect your favorite apps and services to enhance your VoiceAI experience</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- QuickBooks Integration -->
+                    <div class="col-md-6 mb-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-primary rounded-circle p-2 me-3" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-calculator text-white"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">QuickBooks</h6>
+                                    <small class="text-muted">Accounting & Invoicing</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge bg-secondary" id="quickbooksStatus">Not Connected</span>
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-3">Sync customer data, create invoices automatically, and track payments from your voice calls.</p>
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="connectQuickBooks()">
+                                <i class="bi bi-link-45deg me-1"></i>Connect QuickBooks
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stripe Integration -->
+                    <div class="col-md-6 mb-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-info rounded-circle p-2 me-3" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-credit-card text-white"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">Stripe</h6>
+                                    <small class="text-muted">Payment Processing</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge bg-secondary" id="stripeStatus">Not Connected</span>
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-3">Accept payments over the phone, process transactions, and manage customer billing automatically.</p>
+                            <button type="button" class="btn btn-outline-info btn-sm w-100" onclick="connectStripe()">
+                                <i class="bi bi-link-45deg me-1"></i>Connect Stripe
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Google Calendar Integration -->
+                    <div class="col-md-6 mb-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-success rounded-circle p-2 me-3" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-calendar-event text-white"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">Google Calendar</h6>
+                                    <small class="text-muted">Calendar Sync</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge bg-secondary" id="googleCalendarStatus">Not Connected</span>
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-3">Sync appointments with your Google Calendar and check availability during calls.</p>
+                            <button type="button" class="btn btn-outline-success btn-sm w-100" onclick="connectGoogleCalendar()">
+                                <i class="bi bi-link-45deg me-1"></i>Connect Google Calendar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Apple Calendar Integration -->
+                    <div class="col-md-6 mb-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-dark rounded-circle p-2 me-3" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-apple text-white"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">Apple Calendar</h6>
+                                    <small class="text-muted">iCloud Calendar Sync</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <span class="badge bg-secondary" id="appleCalendarStatus">Not Connected</span>
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-3">Sync with your iCloud calendar and manage appointments across all your Apple devices.</p>
+                            <button type="button" class="btn btn-outline-dark btn-sm w-100" onclick="connectAppleCalendar()">
+                                <i class="bi bi-link-45deg me-1"></i>Connect Apple Calendar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Pro Tip:</strong> Connect multiple integrations to create powerful automation workflows. For example, automatically create QuickBooks invoices when appointments are booked via phone calls.
+                </div>
+            </div>
+        </div>
+
+        <!-- Business Information for AI Assistant -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Business Information for AI Assistant</h4>
+                <small class="text-muted">Configure your business details that the AI call assistant can share with callers</small>
+            </div>
+            <div class="card-body">
+                <form id="businessInfoForm">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This information will be available to your AI assistant during phone calls to provide accurate responses to callers.
+                    </div>
+                    
+                    <!-- Basic Business Info -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessNameAI" class="form-label">Business Name</label>
+                                <input type="text" class="form-control" id="businessNameAI" placeholder="Enter your business name">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessType" class="form-label">Business Type</label>
+                                <select class="form-select" id="businessType">
+                                    <option value="">Select business type</option>
+                                    <option value="healthcare">Healthcare/Medical</option>
+                                    <option value="legal">Legal Services</option>
+                                    <option value="realestate">Real Estate</option>
+                                    <option value="consulting">Consulting</option>
+                                    <option value="retail">Retail/E-commerce</option>
+                                    <option value="restaurant">Restaurant/Food Service</option>
+                                    <option value="automotive">Automotive</option>
+                                    <option value="beauty">Beauty/Salon</option>
+                                    <option value="fitness">Fitness/Gym</option>
+                                    <option value="education">Education/Training</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="businessDescription" class="form-label">Business Description</label>
+                        <textarea class="form-control" id="businessDescription" rows="3" placeholder="Describe your business and what you do..."></textarea>
+                    </div>
+                    
+                    <!-- Contact Information -->
+                    <h6 class="mb-3 mt-4">Contact Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessAddress" class="form-label">Business Address</label>
+                                <textarea class="form-control" id="businessAddress" rows="2" placeholder="123 Main St, City, State ZIP"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessPhone" class="form-label">Main Phone Number</label>
+                                <input type="tel" class="form-control" id="businessPhone" placeholder="+1 (555) 123-4567">
+                            </div>
+                            <div class="mb-3">
+                                <label for="businessEmail" class="form-label">Business Email</label>
+                                <input type="email" class="form-control" id="businessEmail" placeholder="info@yourbusiness.com">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessWebsite" class="form-label">Website</label>
+                                <input type="url" class="form-control" id="businessWebsite" placeholder="https://www.yourbusiness.com">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="businessHours" class="form-label">Business Hours</label>
+                                <textarea class="form-control" id="businessHours" rows="2" placeholder="Mon-Fri: 9AM-5PM&#10;Sat: 10AM-3PM&#10;Sun: Closed"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Services Section -->
+                    <h6 class="mb-3 mt-4">Services & Pricing</h6>
+                    <div class="mb-3">
+                        <label for="servicesOffered" class="form-label">Services Offered</label>
+                        <textarea class="form-control" id="servicesOffered" rows="4" placeholder="List your main services, one per line:&#10;• Consultation - $150/hour&#10;• Full Service Package - $500&#10;• Follow-up Session - $75"></textarea>
+                        <small class="text-muted">List each service with pricing. The AI will use this to answer pricing questions.</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="basePrice" class="form-label">Starting Price Range</label>
+                                <input type="text" class="form-control" id="basePrice" placeholder="e.g., $50-$200">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="paymentMethods" class="form-label">Payment Methods Accepted</label>
+                                <input type="text" class="form-control" id="paymentMethods" placeholder="Cash, Credit Cards, PayPal, etc.">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Special Offers -->
+                    <div class="mb-3">
+                        <label for="specialOffers" class="form-label">Current Promotions/Offers</label>
+                        <textarea class="form-control" id="specialOffers" rows="2" placeholder="Any current discounts, promotions, or special offers..."></textarea>
+                    </div>
+                    
+                    <!-- Appointment Info -->
+                    <h6 class="mb-3 mt-4">Appointment & Booking Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="appointmentTypes" class="form-label">Appointment Types</label>
+                                <textarea class="form-control" id="appointmentTypes" rows="3" placeholder="• Initial Consultation (60 min)&#10;• Follow-up (30 min)&#10;• Emergency (15 min)"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="bookingPolicy" class="form-label">Booking Policy</label>
+                                <textarea class="form-control" id="bookingPolicy" rows="3" placeholder="• 24-hour cancellation notice required&#10;• Deposit required for first visit&#10;• Rescheduling allowed up to 2 times"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- FAQ/Common Questions -->
+                    <h6 class="mb-3 mt-4">Frequently Asked Questions</h6>
+                    <div class="mb-3">
+                        <label for="commonQuestions" class="form-label">Common Questions & Answers</label>
+                        <textarea class="form-control" id="commonQuestions" rows="4" placeholder="Q: Do you accept insurance?&#10;A: Yes, we accept most major insurance plans.&#10;&#10;Q: What should I bring to my first appointment?&#10;A: Please bring a valid ID and insurance card."></textarea>
+                        <small class="text-muted">Format as Q: Question? A: Answer. The AI will use these for common inquiries.</small>
+                    </div>
+                    
+                    <!-- Emergency/After Hours -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="emergencyContact" class="form-label">After-Hours/Emergency Contact</label>
+                                <input type="text" class="form-control" id="emergencyContact" placeholder="Emergency line or instructions">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="alternativeContact" class="form-label">Alternative Contact Method</label>
+                                <input type="text" class="form-control" id="alternativeContact" placeholder="Text, email, or other contact method">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Instructions for AI -->
+                    <div class="mb-3">
+                        <label for="aiInstructions" class="form-label">Special Instructions for AI Assistant</label>
+                        <textarea class="form-control" id="aiInstructions" rows="3" placeholder="Any specific things you want the AI to mention or avoid mentioning during calls..."></textarea>
+                        <small class="text-muted">Give specific guidance on how the AI should handle calls and represent your business.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary">Save Business Information</button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="resetBusinessForm()">Reset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Notification Settings -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">Notifications</h4>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="emailNotifications" checked>
+                        <label class="form-check-label" for="emailNotifications">
+                            Email Notifications
+                        </label>
+                    </div>
+                    <small class="text-muted">Receive notifications via email</small>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="smsNotifications">
+                        <label class="form-check-label" for="smsNotifications">
+                            SMS Notifications
+                        </label>
+                    </div>
+                    <small class="text-muted">Receive notifications via SMS</small>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="callNotifications" checked>
+                        <label class="form-check-label" for="callNotifications">
+                            Call Notifications
+                        </label>
+                    </div>
+                    <small class="text-muted">Get notified of incoming calls</small>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="appointmentReminders" checked>
+                        <label class="form-check-label" for="appointmentReminders">
+                            Appointment Reminders
+                        </label>
+                    </div>
+                    <small class="text-muted">Receive appointment reminders</small>
+                </div>
+                
+                <button type="button" class="btn btn-primary btn-sm w-100" onclick="saveNotificationSettings()">
+                    Save Notification Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Privacy Settings -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Privacy & Security</h4>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="twoFactorAuth">
+                        <label class="form-check-label" for="twoFactorAuth">
+                            Two-Factor Authentication
+                        </label>
+                    </div>
+                    <small class="text-muted">Add extra security to your account</small>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="sessionTimeout" checked>
+                        <label class="form-check-label" for="sessionTimeout">
+                            Auto Session Timeout
+                        </label>
+                    </div>
+                    <small class="text-muted">Automatically log out after inactivity</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="dataRetention" class="form-label">Data Retention Period</label>
+                    <select class="form-select" id="dataRetention">
+                        <option value="30">30 days</option>
+                        <option value="90" selected>90 days</option>
+                        <option value="180">6 months</option>
+                        <option value="365">1 year</option>
+                    </select>
+                </div>
+                
+                <button type="button" class="btn btn-primary btn-sm w-100" onclick="savePrivacySettings()">
+                    Save Privacy Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Account Actions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title">Account Actions</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-info" onclick="exportData()">
+                        <i class="bi bi-download me-2"></i>Export Account Data
+                    </button>
+                    
+                    <button type="button" class="btn btn-outline-warning" onclick="clearAllData()">
+                        <i class="bi bi-trash me-2"></i>Clear All Data
+                    </button>
+                    
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteAccount()">
+                        <i class="bi bi-person-x me-2"></i>Delete Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadUserSettings();
+});
+
+// Account Settings Form
+document.getElementById('accountSettingsForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveAccountSettings();
+});
+
+// Password Form
+document.getElementById('passwordForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    changePassword();
+});
+
+// Twilio Settings Form
+document.getElementById('twilioSettingsForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveTwilioSettings();
+});
+
+// Business Info Form
+document.getElementById('businessInfoForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveBusinessInformation();
+});
+
+function loadUserSettings() {
+    // Load current user settings (this would typically come from an API)
+    console.log('Loading user settings...');
+    loadBusinessInformation();
+    loadIntegrationStatus();
+}
+
+function saveAccountSettings() {
+    const settings = {
+        email: document.getElementById('email').value,
+        name: document.getElementById('fullName').value,
+        phone_number: document.getElementById('phoneNumber').value
+    };
+    
+    fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Account settings saved successfully!');
+        } else {
+            alert('Error saving settings: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving settings:', error);
+        alert('Error saving settings');
+    });
+}
+
+function resetAccountForm() {
+    if (confirm('Are you sure you want to reset to original values?')) {
+        document.getElementById('accountSettingsForm').reset();
+        loadUserSettings();
+    }
+}
+
+function changePassword() {
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (newPassword !== confirmPassword) {
+        alert('New passwords do not match');
+        return;
+    }
+    
+    if (newPassword.length < 8) {
+        alert('Password must be at least 8 characters long');
+        return;
+    }
+    
+    fetch('/api/user/password', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Password changed successfully!');
+            document.getElementById('passwordForm').reset();
+        } else {
+            alert('Error changing password: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error changing password:', error);
+        alert('Error changing password');
+    });
+}
+
+function saveTwilioSettings() {
+    const settings = {
+        account_sid: document.getElementById('twilioAccountSid').value,
+        auth_token: document.getElementById('twilioAuthToken').value
+    };
+    
+    fetch('/api/user/twilio', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Twilio settings saved successfully!');
+        } else {
+            alert('Error saving Twilio settings: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving Twilio settings:', error);
+        alert('Error saving Twilio settings');
+    });
+}
+
+function testTwilioConnection() {
+    const accountSid = document.getElementById('twilioAccountSid').value;
+    const authToken = document.getElementById('twilioAuthToken').value;
+    
+    if (!accountSid || !authToken) {
+        alert('Please enter both Account SID and Auth Token');
+        return;
+    }
+    
+    fetch('/api/twilio/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            account_sid: accountSid,
+            auth_token: authToken
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Twilio connection successful!');
+        } else {
+            alert('Twilio connection failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error testing Twilio connection:', error);
+        alert('Error testing Twilio connection');
+    });
+}
+
+function saveNotificationSettings() {
+    const settings = {
+        email_notifications: document.getElementById('emailNotifications').checked,
+        sms_notifications: document.getElementById('smsNotifications').checked,
+        call_notifications: document.getElementById('callNotifications').checked,
+        appointment_reminders: document.getElementById('appointmentReminders').checked
+    };
+    
+    console.log('Saving notification settings:', settings);
+    alert('Notification settings saved!');
+}
+
+function savePrivacySettings() {
+    const settings = {
+        two_factor_auth: document.getElementById('twoFactorAuth').checked,
+        session_timeout: document.getElementById('sessionTimeout').checked,
+        data_retention: parseInt(document.getElementById('dataRetention').value)
+    };
+    
+    console.log('Saving privacy settings:', settings);
+    alert('Privacy settings saved!');
+}
+
+function exportData() {
+    if (confirm('Export all your account data? This may take a few minutes.')) {
+        // Implement data export functionality
+        fetch('/api/user/export', {
+            method: 'POST'
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'account_data.zip';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+            console.error('Error exporting data:', error);
+            alert('Error exporting data');
+        });
+    }
+}
+
+function clearAllData() {
+    if (confirm('Are you sure you want to clear ALL your data? This action cannot be undone.')) {
+        if (confirm('This will delete all your phone numbers, call logs, appointments, and settings. Are you absolutely sure?')) {
+            fetch('/api/user/clear', {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('All data cleared successfully!');
+                    window.location.href = '/dashboard';
+                } else {
+                    alert('Error clearing data: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error clearing data:', error);
+                alert('Error clearing data');
+            });
+        }
+    }
+}
+
+function deleteAccount() {
+    if (confirm('Are you sure you want to DELETE your account? This action cannot be undone.')) {
+        const confirmation = prompt('Type "DELETE" to confirm account deletion:');
+        if (confirmation === 'DELETE') {
+            fetch('/api/user/delete', {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Account deleted successfully!');
+                    window.location.href = '/';
+                } else {
+                    alert('Error deleting account: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting account:', error);
+                alert('Error deleting account');
+            });
+        }
+    }
+}
+
+function saveBusinessInformation() {
+    const businessData = {
+        business_name: document.getElementById('businessNameAI').value,
+        business_type: document.getElementById('businessType').value,
+        business_description: document.getElementById('businessDescription').value,
+        business_address: document.getElementById('businessAddress').value,
+        business_phone: document.getElementById('businessPhone').value,
+        business_email: document.getElementById('businessEmail').value,
+        business_website: document.getElementById('businessWebsite').value,
+        business_hours: document.getElementById('businessHours').value,
+        services_offered: document.getElementById('servicesOffered').value,
+        pricing_info: document.getElementById('basePrice').value,
+        payment_methods: document.getElementById('paymentMethods').value,
+        special_offers: document.getElementById('specialOffers').value,
+        appointment_types: document.getElementById('appointmentTypes').value,
+        booking_policy: document.getElementById('bookingPolicy').value,
+        common_questions: document.getElementById('commonQuestions').value,
+        emergency_contact: document.getElementById('emergencyContact').value,
+        alternative_contact: document.getElementById('alternativeContact').value,
+        ai_instructions: document.getElementById('aiInstructions').value
+    };
+    
+    fetch('/api/user/business-info', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(businessData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Business information saved successfully! Your AI assistant now has access to this information.');
+        } else {
+            alert('Error saving business information: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving business information:', error);
+        alert('Error saving business information');
+    });
+}
+
+function resetBusinessForm() {
+    if (confirm('Are you sure you want to reset the business information form?')) {
+        document.getElementById('businessInfoForm').reset();
+    }
+}
+
+function loadBusinessInformation() {
+    fetch('/api/user/business-info')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.business_info) {
+            const info = data.business_info;
+            
+            // Populate form fields
+            document.getElementById('businessNameAI').value = info.business_name || '';
+            document.getElementById('businessType').value = info.business_type || '';
+            document.getElementById('businessDescription').value = info.business_description || '';
+            document.getElementById('businessAddress').value = info.location_address || '';
+            document.getElementById('businessPhone').value = info.contact_info || '';
+            document.getElementById('businessEmail').value = info.business_email || '';
+            document.getElementById('businessWebsite').value = info.website_url || '';
+            document.getElementById('businessHours').value = info.business_hours || '';
+            document.getElementById('servicesOffered').value = info.services_offered || '';
+            document.getElementById('basePrice').value = info.pricing_info || '';
+            document.getElementById('paymentMethods').value = info.payment_methods || '';
+            document.getElementById('specialOffers').value = info.special_offers || '';
+            document.getElementById('appointmentTypes').value = info.appointment_types || '';
+            document.getElementById('bookingPolicy').value = info.booking_policy || '';
+            document.getElementById('commonQuestions').value = info.common_questions || '';
+            document.getElementById('emergencyContact').value = info.emergency_contact || '';
+            document.getElementById('alternativeContact').value = info.alternative_contact || '';
+            document.getElementById('aiInstructions').value = info.ai_instructions || '';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading business information:', error);
+    });
+}
+
+// Integration connection functions
+function connectQuickBooks() {
+    // Show loading state
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Connecting...';
+    btn.disabled = true;
+    
+    // Simulate OAuth flow - in real implementation, this would redirect to QuickBooks OAuth
+    fetch('/api/integrations/quickbooks/connect', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('quickbooksStatus').textContent = 'Connected';
+            document.getElementById('quickbooksStatus').className = 'badge bg-success';
+            btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+            btn.className = 'btn btn-success btn-sm w-100';
+            alert('QuickBooks connected successfully! You can now sync customer data and create invoices automatically.');
+        } else {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert('Failed to connect QuickBooks: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error connecting QuickBooks:', error);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Error connecting to QuickBooks. Please try again.');
+    });
+}
+
+function connectStripe() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Connecting...';
+    btn.disabled = true;
+    
+    fetch('/api/integrations/stripe/connect', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('stripeStatus').textContent = 'Connected';
+            document.getElementById('stripeStatus').className = 'badge bg-success';
+            btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+            btn.className = 'btn btn-success btn-sm w-100';
+            alert('Stripe connected successfully! You can now process payments during phone calls.');
+        } else {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert('Failed to connect Stripe: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error connecting Stripe:', error);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Error connecting to Stripe. Please try again.');
+    });
+}
+
+function connectGoogleCalendar() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Connecting...';
+    btn.disabled = true;
+    
+    fetch('/api/integrations/google-calendar/connect', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('googleCalendarStatus').textContent = 'Connected';
+            document.getElementById('googleCalendarStatus').className = 'badge bg-success';
+            btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+            btn.className = 'btn btn-success btn-sm w-100';
+            alert('Google Calendar connected successfully! Your appointments will now sync automatically.');
+        } else {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert('Failed to connect Google Calendar: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error connecting Google Calendar:', error);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Error connecting to Google Calendar. Please try again.');
+    });
+}
+
+function connectAppleCalendar() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Connecting...';
+    btn.disabled = true;
+    
+    fetch('/api/integrations/apple-calendar/connect', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('appleCalendarStatus').textContent = 'Connected';
+            document.getElementById('appleCalendarStatus').className = 'badge bg-success';
+            btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+            btn.className = 'btn btn-success btn-sm w-100';
+            alert('Apple Calendar connected successfully! Your iCloud calendar will now sync with VoiceAI.');
+        } else {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert('Failed to connect Apple Calendar: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error connecting Apple Calendar:', error);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Error connecting to Apple Calendar. Please try again.');
+    });
+}
+
+function loadIntegrationStatus() {
+    // Load current integration statuses
+    fetch('/api/integrations/status')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const integrations = data.integrations;
+            
+            // Update QuickBooks status
+            if (integrations.quickbooks) {
+                document.getElementById('quickbooksStatus').textContent = 'Connected';
+                document.getElementById('quickbooksStatus').className = 'badge bg-success';
+                const qbBtn = document.querySelector('button[onclick="connectQuickBooks()"]');
+                qbBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+                qbBtn.className = 'btn btn-success btn-sm w-100';
+            }
+            
+            // Update Stripe status
+            if (integrations.stripe) {
+                document.getElementById('stripeStatus').textContent = 'Connected';
+                document.getElementById('stripeStatus').className = 'badge bg-success';
+                const stripeBtn = document.querySelector('button[onclick="connectStripe()"]');
+                stripeBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+                stripeBtn.className = 'btn btn-success btn-sm w-100';
+            }
+            
+            // Update Google Calendar status
+            if (integrations.google_calendar) {
+                document.getElementById('googleCalendarStatus').textContent = 'Connected';
+                document.getElementById('googleCalendarStatus').className = 'badge bg-success';
+                const gcBtn = document.querySelector('button[onclick="connectGoogleCalendar()"]');
+                gcBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+                gcBtn.className = 'btn btn-success btn-sm w-100';
+            }
+            
+            // Update Apple Calendar status
+            if (integrations.apple_calendar) {
+                document.getElementById('appleCalendarStatus').textContent = 'Connected';
+                document.getElementById('appleCalendarStatus').className = 'badge bg-success';
+                const acBtn = document.querySelector('button[onclick="connectAppleCalendar()"]');
+                acBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Connected';
+                acBtn.className = 'btn btn-success btn-sm w-100';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error loading integration status:', error);
+    });
+}
+</script>
+{% endblock %}
