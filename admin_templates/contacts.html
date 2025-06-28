@@ -13,7 +13,7 @@
 
 <!-- Begin page -->
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-12">
         <!-- Contacts Table -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -97,70 +97,6 @@
                         <!-- Pagination will be generated here -->
                     </ul>
                 </nav>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <!-- Contact Statistics -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Contact Statistics</h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6 mb-3">
-                        <h4 class="mb-1" id="totalContacts">0</h4>
-                        <small class="text-muted">Total Contacts</small>
-                    </div>
-                    <div class="col-6 mb-3">
-                        <h4 class="mb-1" id="favoriteContacts">0</h4>
-                        <small class="text-muted">Favorites</small>
-                    </div>
-                    <div class="col-6">
-                        <h4 class="mb-1" id="contactsWithPhone">0</h4>
-                        <small class="text-muted">With Phone</small>
-                    </div>
-                    <div class="col-6">
-                        <h4 class="mb-1" id="contactsWithEmail">0</h4>
-                        <small class="text-muted">With Email</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-outline-primary" onclick="createGroup()">
-                        <i class="bi bi-people me-1"></i>Create Contact Group
-                    </button>
-                    <button type="button" class="btn btn-outline-info" onclick="bulkEmail()">
-                        <i class="bi bi-envelope me-1"></i>Send Bulk Email
-                    </button>
-                    <button type="button" class="btn btn-outline-success" onclick="bulkSMS()">
-                        <i class="bi bi-chat-dots me-1"></i>Send Bulk SMS
-                    </button>
-                    <button type="button" class="btn btn-outline-warning" onclick="mergeContacts()">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Merge Duplicates
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Recent Activity</h5>
-            </div>
-            <div class="card-body">
-                <div id="recentActivity">
-                    <!-- Recent activity items will be loaded here -->
-                </div>
             </div>
         </div>
     </div>
@@ -348,8 +284,6 @@ function loadContacts() {
             contacts = data.contacts || [];
             filteredContacts = [...contacts];
             displayContacts();
-            updateStatistics();
-            loadRecentActivity();
         } else {
             console.error('Failed to load contacts:', data.error);
             showEmptyState();
@@ -495,12 +429,6 @@ function changePage(page) {
     }
 }
 
-function updateStatistics() {
-    document.getElementById('totalContacts').textContent = contacts.length;
-    document.getElementById('favoriteContacts').textContent = contacts.filter(c => c.is_favorite).length;
-    document.getElementById('contactsWithPhone').textContent = contacts.filter(c => c.phone).length;
-    document.getElementById('contactsWithEmail').textContent = contacts.filter(c => c.email).length;
-}
 
 function searchContacts() {
     const searchTerm = document.getElementById('contactSearch').value.toLowerCase();
@@ -794,36 +722,6 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-function loadRecentActivity() {
-    // Load recent contact activity
-    fetch('/api/contacts/activity')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const activityDiv = document.getElementById('recentActivity');
-            if (data.activities && data.activities.length > 0) {
-                activityDiv.innerHTML = data.activities.map(activity => `
-                    <div class="d-flex align-items-start mb-3">
-                        <div class="avatar-sm rounded-circle bg-light d-flex align-items-center justify-content-center me-3">
-                            <i class="bi ${activity.icon} text-muted"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 fs-13">${activity.title}</h6>
-                            <p class="mb-0 fs-12 text-muted">${activity.description}</p>
-                            <small class="text-muted">${new Date(activity.created_at).toLocaleString()}</small>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                activityDiv.innerHTML = '<p class="text-muted text-center">No recent activity</p>';
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error loading recent activity:', error);
-        document.getElementById('recentActivity').innerHTML = '<p class="text-muted text-center">Unable to load activity</p>';
-    });
-}
 
 // Additional functionality
 function toggleSelectAll() {
@@ -879,25 +777,6 @@ function exportContacts() {
     window.URL.revokeObjectURL(url);
 }
 
-function createGroup() {
-    // TODO: Implement contact group creation
-    alert('Contact group functionality coming soon!');
-}
-
-function bulkEmail() {
-    // TODO: Implement bulk email functionality
-    alert('Bulk email functionality coming soon!');
-}
-
-function bulkSMS() {
-    // TODO: Implement bulk SMS functionality
-    alert('Bulk SMS functionality coming soon!');
-}
-
-function mergeContacts() {
-    // TODO: Implement contact merging functionality
-    alert('Contact merging functionality coming soon!');
-}
 
 // Reset form when modal is closed
 document.getElementById('addContactModal').addEventListener('hidden.bs.modal', function() {
