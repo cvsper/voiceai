@@ -1,0 +1,909 @@
+{% extends "partials/layouts/main.html" %}
+
+{% block meta %}
+{% with title="Contacts" %}
+{% include "partials/title-meta.html" %}
+{% endwith %}
+{% endblock %}
+
+{% block content %}
+{% with title_sub="Communications", title="Contacts"%}
+{% include "partials/pagetitle.html" %}
+{% endwith %}
+
+<!-- Begin page -->
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Contacts Table -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="card-title mb-0">Your Contacts</h4>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-person-plus me-1"></i>Add Contact
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="importContacts()">
+                        <i class="bi bi-upload me-1"></i>Import
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="exportContacts()">
+                        <i class="bi bi-download me-1"></i>Export
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Search and Filter -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="contactSearch" placeholder="Search contacts..." onkeyup="searchContacts()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="contactFilter" onchange="filterContacts()">
+                            <option value="all">All Contacts</option>
+                            <option value="favorites">Favorites</option>
+                            <option value="recent">Recently Added</option>
+                            <option value="no-phone">No Phone</option>
+                            <option value="no-email">No Email</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortBy" onchange="sortContacts()">
+                            <option value="name">Sort by Name</option>
+                            <option value="date">Sort by Date Added</option>
+                            <option value="email">Sort by Email</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Contacts Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="5%">
+                                    <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleSelectAll()">
+                                </th>
+                                <th width="10%">Avatar</th>
+                                <th width="25%">Name</th>
+                                <th width="25%">Email</th>
+                                <th width="20%">Phone</th>
+                                <th width="10%">Favorite</th>
+                                <th width="5%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTableBody">
+                            <!-- Contacts will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="text-center py-5" style="display: none;">
+                    <div class="mb-4">
+                        <i class="bi bi-person-plus display-1 text-muted"></i>
+                    </div>
+                    <h5 class="text-muted">No contacts found</h5>
+                    <p class="text-muted">Start building your contact list by adding your first contact.</p>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-person-plus me-1"></i>Add Your First Contact
+                    </button>
+                </div>
+
+                <!-- Pagination -->
+                <nav aria-label="Contacts pagination" id="contactsPagination" class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        <!-- Pagination will be generated here -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Contact Statistics -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Contact Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <h4 class="mb-1" id="totalContacts">0</h4>
+                        <small class="text-muted">Total Contacts</small>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <h4 class="mb-1" id="favoriteContacts">0</h4>
+                        <small class="text-muted">Favorites</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="mb-1" id="contactsWithPhone">0</h4>
+                        <small class="text-muted">With Phone</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="mb-1" id="contactsWithEmail">0</h4>
+                        <small class="text-muted">With Email</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary" onclick="createGroup()">
+                        <i class="bi bi-people me-1"></i>Create Contact Group
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="bulkEmail()">
+                        <i class="bi bi-envelope me-1"></i>Send Bulk Email
+                    </button>
+                    <button type="button" class="btn btn-outline-success" onclick="bulkSMS()">
+                        <i class="bi bi-chat-dots me-1"></i>Send Bulk SMS
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" onclick="mergeContacts()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Merge Duplicates
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <div id="recentActivity">
+                    <!-- Recent activity items will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Contact Modal -->
+<div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addContactModalLabel">Add New Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contactForm">
+                    <input type="hidden" id="contactId" value="">
+                    
+                    <!-- Basic Information -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="firstName" class="form-label">First Name *</label>
+                                <input type="text" class="form-control" id="firstName" placeholder="Enter first name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="lastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" placeholder="Enter last name">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact Information -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" placeholder="email@example.com">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="phone" placeholder="+1 (555) 123-4567">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="company" class="form-label">Company</label>
+                                <input type="text" class="form-control" id="company" placeholder="Company name">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="jobTitle" class="form-label">Job Title</label>
+                                <input type="text" class="form-control" id="jobTitle" placeholder="Job title">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea class="form-control" id="address" rows="3" placeholder="Street address, city, state, zip"></textarea>
+                    </div>
+
+                    <!-- Notes and Tags -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tags" class="form-label">Tags</label>
+                                <input type="text" class="form-control" id="tags" placeholder="customer, lead, partner (comma separated)">
+                                <small class="text-muted">Separate tags with commas</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="contactGroup" class="form-label">Contact Group</label>
+                                <select class="form-select" id="contactGroup">
+                                    <option value="">Select a group...</option>
+                                    <option value="customers">Customers</option>
+                                    <option value="leads">Leads</option>
+                                    <option value="partners">Partners</option>
+                                    <option value="vendors">Vendors</option>
+                                    <option value="personal">Personal</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" rows="3" placeholder="Additional notes about this contact"></textarea>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isFavorite">
+                                <label class="form-check-label" for="isFavorite">
+                                    Mark as favorite
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="allowSMS" checked>
+                                <label class="form-check-label" for="allowSMS">
+                                    Allow SMS communications
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveContact()">Save Contact</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contact Details Modal -->
+<div class="modal fade" id="contactDetailsModal" tabindex="-1" aria-labelledby="contactDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactDetailsModalLabel">Contact Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="contactDetailsContent">
+                <!-- Contact details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-info" onclick="callContact()">
+                    <i class="bi bi-telephone me-1"></i>Call
+                </button>
+                <button type="button" class="btn btn-success" onclick="smsContact()">
+                    <i class="bi bi-chat-dots me-1"></i>SMS
+                </button>
+                <button type="button" class="btn btn-primary" onclick="editContactFromDetails()">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block js %}
+<script>
+let contacts = [];
+let filteredContacts = [];
+let currentPage = 1;
+const contactsPerPage = 10;
+let currentContact = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadContacts();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Form validation
+    document.getElementById('contactForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveContact();
+    });
+}
+
+function loadContacts() {
+    fetch('/api/contacts')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            contacts = data.contacts || [];
+            filteredContacts = [...contacts];
+            displayContacts();
+            updateStatistics();
+            loadRecentActivity();
+        } else {
+            console.error('Failed to load contacts:', data.error);
+            showEmptyState();
+        }
+    })
+    .catch(error => {
+        console.error('Error loading contacts:', error);
+        showEmptyState();
+    });
+}
+
+function displayContacts() {
+    const tableBody = document.getElementById('contactsTableBody');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (filteredContacts.length === 0) {
+        showEmptyState();
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    
+    // Calculate pagination
+    const startIndex = (currentPage - 1) * contactsPerPage;
+    const endIndex = startIndex + contactsPerPage;
+    const pageContacts = filteredContacts.slice(startIndex, endIndex);
+    
+    // Generate table rows
+    tableBody.innerHTML = pageContacts.map(contact => `
+        <tr>
+            <td>
+                <input type="checkbox" class="form-check-input contact-checkbox" value="${contact.id}">
+            </td>
+            <td>
+                <div class="avatar-sm rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold">
+                    ${getInitials(contact.first_name, contact.last_name)}
+                </div>
+            </td>
+            <td>
+                <div>
+                    <h6 class="mb-1">${contact.first_name} ${contact.last_name || ''}</h6>
+                    ${contact.company ? `<small class="text-muted">${contact.company}</small>` : ''}
+                </div>
+            </td>
+            <td>
+                ${contact.email ? `<a href="mailto:${contact.email}" class="text-decoration-none">${contact.email}</a>` : '<span class="text-muted">No email</span>'}
+            </td>
+            <td>
+                ${contact.phone ? `<a href="tel:${contact.phone}" class="text-decoration-none">${formatPhone(contact.phone)}</a>` : '<span class="text-muted">No phone</span>'}
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm ${contact.is_favorite ? 'btn-warning' : 'btn-outline-warning'}" 
+                        onclick="toggleFavorite(${contact.id})">
+                    <i class="bi bi-star${contact.is_favorite ? '-fill' : ''}"></i>
+                </button>
+            </td>
+            <td>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="viewContact(${contact.id})">
+                            <i class="bi bi-eye me-2"></i>View Details
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="editContact(${contact.id})">
+                            <i class="bi bi-pencil me-2"></i>Edit
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="callContact(${contact.id})">
+                            <i class="bi bi-telephone me-2"></i>Call
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="smsContact(${contact.id})">
+                            <i class="bi bi-chat-dots me-2"></i>Send SMS
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteContact(${contact.id})">
+                            <i class="bi bi-trash me-2"></i>Delete
+                        </a></li>
+                    </ul>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    updatePagination();
+}
+
+function showEmptyState() {
+    document.getElementById('contactsTableBody').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('contactsPagination').style.display = 'none';
+}
+
+function updatePagination() {
+    const totalPages = Math.ceil(filteredContacts.length / contactsPerPage);
+    const pagination = document.getElementById('contactsPagination');
+    
+    if (totalPages <= 1) {
+        pagination.style.display = 'none';
+        return;
+    }
+    
+    pagination.style.display = 'block';
+    
+    let paginationHTML = '';
+    
+    // Previous button
+    paginationHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+        </li>
+    `;
+    
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            paginationHTML += `
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                </li>
+            `;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            paginationHTML += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    // Next button
+    paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+        </li>
+    `;
+    
+    pagination.querySelector('ul').innerHTML = paginationHTML;
+}
+
+function changePage(page) {
+    const totalPages = Math.ceil(filteredContacts.length / contactsPerPage);
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        displayContacts();
+    }
+}
+
+function updateStatistics() {
+    document.getElementById('totalContacts').textContent = contacts.length;
+    document.getElementById('favoriteContacts').textContent = contacts.filter(c => c.is_favorite).length;
+    document.getElementById('contactsWithPhone').textContent = contacts.filter(c => c.phone).length;
+    document.getElementById('contactsWithEmail').textContent = contacts.filter(c => c.email).length;
+}
+
+function searchContacts() {
+    const searchTerm = document.getElementById('contactSearch').value.toLowerCase();
+    filteredContacts = contacts.filter(contact => 
+        (contact.first_name + ' ' + (contact.last_name || '')).toLowerCase().includes(searchTerm) ||
+        (contact.email || '').toLowerCase().includes(searchTerm) ||
+        (contact.phone || '').includes(searchTerm) ||
+        (contact.company || '').toLowerCase().includes(searchTerm)
+    );
+    currentPage = 1;
+    displayContacts();
+}
+
+function filterContacts() {
+    const filter = document.getElementById('contactFilter').value;
+    const searchTerm = document.getElementById('contactSearch').value.toLowerCase();
+    
+    let filtered = [...contacts];
+    
+    // Apply search filter
+    if (searchTerm) {
+        filtered = filtered.filter(contact => 
+            (contact.first_name + ' ' + (contact.last_name || '')).toLowerCase().includes(searchTerm) ||
+            (contact.email || '').toLowerCase().includes(searchTerm) ||
+            (contact.phone || '').includes(searchTerm) ||
+            (contact.company || '').toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    // Apply category filter
+    switch (filter) {
+        case 'favorites':
+            filtered = filtered.filter(c => c.is_favorite);
+            break;
+        case 'recent':
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            filtered = filtered.filter(c => new Date(c.created_at) >= oneWeekAgo);
+            break;
+        case 'no-phone':
+            filtered = filtered.filter(c => !c.phone);
+            break;
+        case 'no-email':
+            filtered = filtered.filter(c => !c.email);
+            break;
+    }
+    
+    filteredContacts = filtered;
+    currentPage = 1;
+    displayContacts();
+}
+
+function sortContacts() {
+    const sortBy = document.getElementById('sortBy').value;
+    
+    filteredContacts.sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                return (a.first_name + ' ' + (a.last_name || '')).localeCompare(b.first_name + ' ' + (b.last_name || ''));
+            case 'date':
+                return new Date(b.created_at) - new Date(a.created_at);
+            case 'email':
+                return (a.email || '').localeCompare(b.email || '');
+            default:
+                return 0;
+        }
+    });
+    
+    displayContacts();
+}
+
+function saveContact() {
+    const contactData = {
+        first_name: document.getElementById('firstName').value,
+        last_name: document.getElementById('lastName').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        company: document.getElementById('company').value,
+        job_title: document.getElementById('jobTitle').value,
+        address: document.getElementById('address').value,
+        notes: document.getElementById('notes').value,
+        tags: document.getElementById('tags').value,
+        contact_group: document.getElementById('contactGroup').value,
+        is_favorite: document.getElementById('isFavorite').checked,
+        allow_sms: document.getElementById('allowSMS').checked
+    };
+    
+    const contactId = document.getElementById('contactId').value;
+    const url = contactId ? `/api/contacts/${contactId}` : '/api/contacts';
+    const method = contactId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(contactData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+            modal.hide();
+            document.getElementById('contactForm').reset();
+            document.getElementById('contactId').value = '';
+            loadContacts();
+            
+            // Show success message
+            showToast('Contact saved successfully!', 'success');
+        } else {
+            alert('Error saving contact: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving contact:', error);
+        alert('Error saving contact');
+    });
+}
+
+function editContact(contactId) {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+    
+    // Populate form
+    document.getElementById('contactId').value = contact.id;
+    document.getElementById('firstName').value = contact.first_name;
+    document.getElementById('lastName').value = contact.last_name || '';
+    document.getElementById('email').value = contact.email || '';
+    document.getElementById('phone').value = contact.phone || '';
+    document.getElementById('company').value = contact.company || '';
+    document.getElementById('jobTitle').value = contact.job_title || '';
+    document.getElementById('address').value = contact.address || '';
+    document.getElementById('notes').value = contact.notes || '';
+    document.getElementById('tags').value = contact.tags || '';
+    document.getElementById('contactGroup').value = contact.contact_group || '';
+    document.getElementById('isFavorite').checked = contact.is_favorite;
+    document.getElementById('allowSMS').checked = contact.allow_sms !== false;
+    
+    // Update modal title
+    document.getElementById('addContactModalLabel').textContent = 'Edit Contact';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
+    modal.show();
+}
+
+function viewContact(contactId) {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+    
+    currentContact = contact;
+    
+    const content = `
+        <div class="row">
+            <div class="col-12 text-center mb-3">
+                <div class="avatar-lg rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold mx-auto" style="width: 80px; height: 80px; font-size: 24px;">
+                    ${getInitials(contact.first_name, contact.last_name)}
+                </div>
+                <h5 class="mt-2 mb-1">${contact.first_name} ${contact.last_name || ''}</h5>
+                ${contact.company ? `<p class="text-muted">${contact.company}</p>` : ''}
+                ${contact.is_favorite ? '<i class="bi bi-star-fill text-warning"></i>' : ''}
+            </div>
+            <div class="col-12">
+                <table class="table table-borderless">
+                    <tbody>
+                        ${contact.email ? `<tr><td><strong>Email:</strong></td><td><a href="mailto:${contact.email}">${contact.email}</a></td></tr>` : ''}
+                        ${contact.phone ? `<tr><td><strong>Phone:</strong></td><td><a href="tel:${contact.phone}">${formatPhone(contact.phone)}</a></td></tr>` : ''}
+                        ${contact.job_title ? `<tr><td><strong>Job Title:</strong></td><td>${contact.job_title}</td></tr>` : ''}
+                        ${contact.address ? `<tr><td><strong>Address:</strong></td><td>${contact.address}</td></tr>` : ''}
+                        ${contact.contact_group ? `<tr><td><strong>Group:</strong></td><td><span class="badge bg-secondary">${contact.contact_group}</span></td></tr>` : ''}
+                        ${contact.tags ? `<tr><td><strong>Tags:</strong></td><td>${contact.tags.split(',').map(tag => `<span class="badge bg-light text-dark me-1">${tag.trim()}</span>`).join('')}</td></tr>` : ''}
+                        ${contact.notes ? `<tr><td><strong>Notes:</strong></td><td>${contact.notes}</td></tr>` : ''}
+                        <tr><td><strong>Added:</strong></td><td>${new Date(contact.created_at).toLocaleDateString()}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('contactDetailsContent').innerHTML = content;
+    const modal = new bootstrap.Modal(document.getElementById('contactDetailsModal'));
+    modal.show();
+}
+
+function deleteContact(contactId) {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+    
+    if (confirm(`Are you sure you want to delete ${contact.first_name} ${contact.last_name || ''}?`)) {
+        fetch(`/api/contacts/${contactId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadContacts();
+                showToast('Contact deleted successfully!', 'success');
+            } else {
+                alert('Error deleting contact: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting contact:', error);
+            alert('Error deleting contact');
+        });
+    }
+}
+
+function toggleFavorite(contactId) {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+    
+    fetch(`/api/contacts/${contactId}/favorite`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            is_favorite: !contact.is_favorite
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadContacts();
+        } else {
+            alert('Error updating favorite status');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating favorite:', error);
+    });
+}
+
+function callContact(contactId = null) {
+    const contact = contactId ? contacts.find(c => c.id === contactId) : currentContact;
+    if (!contact || !contact.phone) {
+        alert('No phone number available for this contact');
+        return;
+    }
+    
+    // Implement call functionality (redirect to dialer or integrate with Twilio)
+    if (confirm(`Call ${contact.first_name} at ${formatPhone(contact.phone)}?`)) {
+        // In a real implementation, this would initiate a call through your VoiceAI system
+        window.location.href = `tel:${contact.phone}`;
+    }
+}
+
+function smsContact(contactId = null) {
+    const contact = contactId ? contacts.find(c => c.id === contactId) : currentContact;
+    if (!contact || !contact.phone) {
+        alert('No phone number available for this contact');
+        return;
+    }
+    
+    // Redirect to SMS page with pre-filled recipient
+    window.location.href = `/sms?to=${encodeURIComponent(contact.phone)}&name=${encodeURIComponent(contact.first_name + ' ' + (contact.last_name || ''))}`;
+}
+
+function editContactFromDetails() {
+    if (currentContact) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('contactDetailsModal'));
+        modal.hide();
+        setTimeout(() => editContact(currentContact.id), 300);
+    }
+}
+
+// Utility functions
+function getInitials(firstName, lastName) {
+    return (firstName.charAt(0) + (lastName ? lastName.charAt(0) : '')).toUpperCase();
+}
+
+function formatPhone(phone) {
+    // Simple phone formatting - can be enhanced
+    if (phone && phone.length === 10) {
+        return phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+    }
+    return phone;
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast implementation
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999;';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        document.body.removeChild(toast);
+    }, 3000);
+}
+
+function loadRecentActivity() {
+    // Load recent contact activity
+    fetch('/api/contacts/activity')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const activityDiv = document.getElementById('recentActivity');
+            if (data.activities && data.activities.length > 0) {
+                activityDiv.innerHTML = data.activities.map(activity => `
+                    <div class="d-flex align-items-start mb-3">
+                        <div class="avatar-sm rounded-circle bg-light d-flex align-items-center justify-content-center me-3">
+                            <i class="bi ${activity.icon} text-muted"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 fs-13">${activity.title}</h6>
+                            <p class="mb-0 fs-12 text-muted">${activity.description}</p>
+                            <small class="text-muted">${new Date(activity.created_at).toLocaleString()}</small>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                activityDiv.innerHTML = '<p class="text-muted text-center">No recent activity</p>';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error loading recent activity:', error);
+        document.getElementById('recentActivity').innerHTML = '<p class="text-muted text-center">Unable to load activity</p>';
+    });
+}
+
+// Additional functionality
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.contact-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+}
+
+function importContacts() {
+    // TODO: Implement contact import functionality
+    alert('Contact import functionality coming soon!');
+}
+
+function exportContacts() {
+    // Export selected contacts or all contacts
+    const selectedIds = Array.from(document.querySelectorAll('.contact-checkbox:checked')).map(cb => cb.value);
+    const contactsToExport = selectedIds.length > 0 ? 
+        contacts.filter(c => selectedIds.includes(c.id.toString())) : 
+        contacts;
+    
+    if (contactsToExport.length === 0) {
+        alert('No contacts to export');
+        return;
+    }
+    
+    // Create CSV content
+    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Job Title', 'Address', 'Notes'];
+    const csvContent = [
+        headers.join(','),
+        ...contactsToExport.map(contact => [
+            contact.first_name || '',
+            contact.last_name || '',
+            contact.email || '',
+            contact.phone || '',
+            contact.company || '',
+            contact.job_title || '',
+            contact.address || '',
+            contact.notes || ''
+        ].map(field => `"${field.replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    // Download CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contacts_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+function createGroup() {
+    // TODO: Implement contact group creation
+    alert('Contact group functionality coming soon!');
+}
+
+function bulkEmail() {
+    // TODO: Implement bulk email functionality
+    alert('Bulk email functionality coming soon!');
+}
+
+function bulkSMS() {
+    // TODO: Implement bulk SMS functionality
+    alert('Bulk SMS functionality coming soon!');
+}
+
+function mergeContacts() {
+    // TODO: Implement contact merging functionality
+    alert('Contact merging functionality coming soon!');
+}
+
+// Reset form when modal is closed
+document.getElementById('addContactModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('contactForm').reset();
+    document.getElementById('contactId').value = '';
+    document.getElementById('addContactModalLabel').textContent = 'Add New Contact';
+});
+</script>
+{% endblock %}
